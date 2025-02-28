@@ -29,12 +29,10 @@ enum AudioTrackState {
   localAndRemote,
 }
 
-typedef ConfigureNativeAudioFunc = Future<NativeAudioConfiguration> Function(
-    AudioTrackState state);
+typedef ConfigureNativeAudioFunc = Future<NativeAudioConfiguration> Function(AudioTrackState state);
 
 // it's possible to set custom function here to customize audio session configuration
-ConfigureNativeAudioFunc onConfigureNativeAudio =
-    defaultNativeAudioConfigurationFunc;
+ConfigureNativeAudioFunc onConfigureNativeAudio = defaultNativeAudioConfigurationFunc;
 
 final _trackCounterLock = sync.Lock();
 AudioTrackState _audioTrackState = AudioTrackState.none;
@@ -152,8 +150,7 @@ AudioTrackState _computeAudioTrackState() {
   return AudioTrackState.none;
 }
 
-Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(
-    AudioTrackState state) async {
+Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(AudioTrackState state) async {
   // This following comment line from the original code.
   // if (state == AudioTrackState.none) {
   //   return NativeAudioConfiguration.soloAmbient;
@@ -173,8 +170,6 @@ Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(
       AppleAudioCategoryOption.allowBluetoothA2DP,
       AppleAudioCategoryOption.allowAirPlay,
     },
-    appleAudioMode: Hardware.instance.preferSpeakerOutput
-        ? AppleAudioMode.videoChat
-        : AppleAudioMode.voiceChat,
+    appleAudioMode: AppleAudioMode.voiceChat,
   );
 }
