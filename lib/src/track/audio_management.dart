@@ -112,13 +112,13 @@ Future<void> _onAudioTrackCountDidChange() async {
       // Only iOS for now...
       config = await onConfigureNativeAudio.call(_audioTrackState);
 
-      if (Hardware.instance.forceSpeakerOutput) {
-        config = config.copyWith(
-          appleAudioCategoryOptions: {
-            AppleAudioCategoryOption.defaultToSpeaker,
-          },
-        );
-      }
+      // if (Hardware.instance.forceSpeakerOutput) {
+      //   config = config.copyWith(
+      //     appleAudioCategoryOptions: {
+      //       AppleAudioCategoryOption.defaultToSpeaker,
+      //     },
+      //   );
+      // }
     }
 
     if (config != null) {
@@ -126,11 +126,11 @@ Future<void> _onAudioTrackCountDidChange() async {
       try {
         await Native.configureAudio(config);
 
-        // TODO: Mod line 1, ask nut
-        final preferSpeakerOutput = Hardware.instance.preferSpeakerOutput;
-
-        // TODO: Mod line 2, ask nut
-        await Hardware.instance.setSpeakerphoneOn(preferSpeakerOutput);
+        // // TODO: Mod line 1, ask nut
+        // final preferSpeakerOutput = Hardware.instance.preferSpeakerOutput;
+        //
+        // // TODO: Mod line 2, ask nut
+        // await Hardware.instance.setSpeakerphoneOn(preferSpeakerOutput);
       } catch (error) {
         logger.warning('failed to configure ${error}');
       }
@@ -151,6 +151,7 @@ AudioTrackState _computeAudioTrackState() {
 }
 
 Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(AudioTrackState state) async {
+  return NativeAudioConfiguration.playAndRecordReceiver;
   // This following comment line from the original code.
   // if (state == AudioTrackState.none) {
   //   return NativeAudioConfiguration.soloAmbient;
@@ -163,13 +164,13 @@ Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(AudioTrackS
   //     ? NativeAudioConfiguration.playAndRecordSpeaker
   //     : NativeAudioConfiguration.playAndRecordReceiver;
 
-  return NativeAudioConfiguration(
-    appleAudioCategory: AppleAudioCategory.playAndRecord,
-    appleAudioCategoryOptions: {
-      AppleAudioCategoryOption.allowBluetooth,
-      AppleAudioCategoryOption.allowBluetoothA2DP,
-      AppleAudioCategoryOption.allowAirPlay,
-    },
-    appleAudioMode: AppleAudioMode.voiceChat,
-  );
+  // return NativeAudioConfiguration(
+  //   appleAudioCategory: AppleAudioCategory.playAndRecord,
+  //   appleAudioCategoryOptions: {
+  //     AppleAudioCategoryOption.allowBluetooth,
+  //     AppleAudioCategoryOption.allowBluetoothA2DP,
+  //     AppleAudioCategoryOption.allowAirPlay,
+  //   },
+  //   appleAudioMode: AppleAudioMode.voiceChat,
+  // );
 }

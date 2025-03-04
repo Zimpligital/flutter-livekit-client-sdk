@@ -137,33 +137,25 @@ class Hardware {
       _forceSpeakerOutput = forceSpeakerOutput;
       if (lkPlatformIs(PlatformType.iOS)) {
         NativeAudioConfiguration? config;
-        if (lkPlatformIs(PlatformType.iOS)) {
-          // TODO: Code below from nut, confirm with nut
-          // NativeAudioConfiguration config = NativeAudioConfiguration(
-          //   appleAudioCategory: AppleAudioCategory.playAndRecord,
-          //   appleAudioCategoryOptions: {
-          //     AppleAudioCategoryOption.allowBluetooth,
-          //     AppleAudioCategoryOption.mixWithOthers,
-          //   },
-          //   appleAudioMode: enable ? AppleAudioMode.videoChat : AppleAudioMode.voiceChat,
-          // );
-
-          // Only iOS for now...
-          config = await onConfigureNativeAudio.call(audioTrackState);
-          if (_preferSpeakerOutput && _forceSpeakerOutput) {
-            config = config.copyWith(
-              appleAudioCategoryOptions: {
-                AppleAudioCategoryOption.defaultToSpeaker,
-              },
-            );
-          }
-          logger.fine('configuring for ${audioTrackState} using ${config}...');
-          try {
-            await Native.configureAudio(config);
-          } catch (error) {
-            logger.warning('failed to configure ${error}');
-          }
+        config = await onConfigureNativeAudio.call(audioTrackState);
+        if (forceSpeakerOutput || _preferSpeakerOutput) {
+          config = NativeAudioConfiguration.playAndRecordSpeaker;
+          config = config.copyWith(
+            appleAudioCategoryOptions: {
+              AppleAudioCategoryOption.defaultToSpeaker,
+            },
+          );
+        } else {
+          config = NativeAudioConfiguration.playAndRecordReceiver;
         }
+
+        logger.fine('configuring for ${audioTrackState} using ${config}...');
+        try {
+          await Native.configureAudio(config);
+        } catch (error) {
+          logger.warning('failed to configure ${error}');
+        }
+
       } else {
         await rtc.Helper.setSpeakerphoneOn(enable);
       }
