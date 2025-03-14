@@ -76,6 +76,7 @@ class Hardware {
   bool get preferSpeakerOutput => _preferSpeakerOutput;
 
   bool _forceSpeakerOutput = false;
+  bool _isVideoMode = false;
 
   /// if true, will force speaker output even if headphones or bluetooth is connected
   /// only supported on iOS for now
@@ -130,37 +131,43 @@ class Hardware {
   /// be prioritized even if set to true.
   /// [forceSpeakerOutput] if true, will force speaker output even if headphones
   /// or bluetooth is connected, only supported on iOS for now
-  Future<void> setSpeakerphoneOn(bool enable,
-      {bool forceSpeakerOutput = false}) async {
-    if (canSwitchSpeakerphone) {
-      _preferSpeakerOutput = enable;
-      _forceSpeakerOutput = forceSpeakerOutput;
-      if (lkPlatformIs(PlatformType.iOS)) {
-        NativeAudioConfiguration? config;
-        config = await onConfigureNativeAudio.call(audioTrackState);
-        if (forceSpeakerOutput || _preferSpeakerOutput) {
-          config = NativeAudioConfiguration.playAndRecordSpeaker;
-          config = config.copyWith(
-            appleAudioCategoryOptions: {
-              AppleAudioCategoryOption.defaultToSpeaker,
-            },
+  Future<void> setSpeakerphoneOn(
+    bool enable, {
+    bool? forceSpeakerOutput,
+    bool? isVideoMode,
+  }) async {
+    _forceSpeakerOutput = forceSpeakerOutput ?? _forceSpeakerOutput;
+    _isVideoMode = isVideoMode ?? _isVideoMode;
+
+    if (!canSwitchSpeakerphone) {
+      logger.warning('setSpeakerphoneOn only support on iOS/Android');
+      return;
+    }
+
+    _preferSpeakerOutput = enable;
+
+    if (lkPlatformIs(PlatformType.iOS)) {
+      try {
+        var config = await onConfigureNativeAudio.call(audioTrackState);
+        if (_forceSpeakerOutput || _preferSpeakerOutput) {
+          config = NativeAudioConfiguration.playAndRecordSpeaker.copyWith(
+            appleAudioCategoryOptions: {AppleAudioCategoryOption.defaultToSpeaker},
+          );
+        } else if (_isVideoMode) {
+          config = NativeAudioConfiguration.playAndRecordSpeaker.copyWith(
+            appleAudioMode: AppleAudioMode.videoChat,
           );
         } else {
           config = NativeAudioConfiguration.playAndRecordReceiver;
         }
 
-        logger.fine('configuring for ${audioTrackState} using ${config}...');
-        try {
-          await Native.configureAudio(config);
-        } catch (error) {
-          logger.warning('failed to configure ${error}');
-        }
-
-      } else {
-        await rtc.Helper.setSpeakerphoneOn(enable);
+        logger.fine('configuring for $audioTrackState using $config...');
+        await Native.configureAudio(config);
+      } catch (error) {
+        logger.warning('failed to configure $error');
       }
     } else {
-      logger.warning('setSpeakerphoneOn only support on iOS/Android');
+      await rtc.Helper.setSpeakerphoneOn(enable);
     }
   }
 
