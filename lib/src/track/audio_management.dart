@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:synchronized/synchronized.dart' as sync;
 
 import '../hardware/hardware.dart';
@@ -29,10 +30,12 @@ enum AudioTrackState {
   localAndRemote,
 }
 
-typedef ConfigureNativeAudioFunc = Future<NativeAudioConfiguration> Function(AudioTrackState state);
+typedef ConfigureNativeAudioFunc = Future<NativeAudioConfiguration> Function(
+    AudioTrackState state);
 
 // it's possible to set custom function here to customize audio session configuration
-ConfigureNativeAudioFunc onConfigureNativeAudio = defaultNativeAudioConfigurationFunc;
+ConfigureNativeAudioFunc onConfigureNativeAudio =
+    defaultNativeAudioConfigurationFunc;
 
 final _trackCounterLock = sync.Lock();
 AudioTrackState _audioTrackState = AudioTrackState.none;
@@ -111,26 +114,30 @@ Future<void> _onAudioTrackCountDidChange() async {
     if (lkPlatformIs(PlatformType.iOS)) {
       // Only iOS for now...
       config = await onConfigureNativeAudio.call(_audioTrackState);
-
-      // if (Hardware.instance.forceSpeakerOutput) {
-      //   config = config.copyWith(
-      //     appleAudioCategoryOptions: {
-      //       AppleAudioCategoryOption.defaultToSpeaker,
-      //     },
-      //   );
-      // }
+      // ! MOD: START Prev version this code is commented.
+      if (Hardware.instance.forceSpeakerOutput) {
+        config = config.copyWith(
+          appleAudioCategoryOptions: {
+            AppleAudioCategoryOption.defaultToSpeaker,
+          },
+        );
+      }
+      // ! MOD: END Prev version this code is commented.
     }
 
     if (config != null) {
       logger.fine('configuring for ${_audioTrackState} using ${config}...');
       try {
-        await Native.configureAudio(config);
-
+        if (Hardware.instance.isAutomaticConfigurationEnabled) {
+          logger.fine('configuring native audio...');
+          await Native.configureAudio(config);
+        }
         // // TODO: Mod line 1, ask nut
         // final preferSpeakerOutput = Hardware.instance.preferSpeakerOutput;
         //
         // // TODO: Mod line 2, ask nut
         // await Hardware.instance.setSpeakerphoneOn(preferSpeakerOutput);
+
       } catch (error) {
         logger.warning('failed to configure ${error}');
       }
@@ -150,27 +157,42 @@ AudioTrackState _computeAudioTrackState() {
   return AudioTrackState.none;
 }
 
-Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(AudioTrackState state) async {
-  return NativeAudioConfiguration.playAndRecordReceiver;
-  // This following comment line from the original code.
-  // if (state == AudioTrackState.none) {
-  //   return NativeAudioConfiguration.soloAmbient;
-  // } else if (state == AudioTrackState.remoteOnly &&
-  //     Hardware.instance.preferSpeakerOutput) {
-  //   return NativeAudioConfiguration.playback;
-  // }
-  //
-  // return Hardware.instance.preferSpeakerOutput
-  //     ? NativeAudioConfiguration.playAndRecordSpeaker
-  //     : NativeAudioConfiguration.playAndRecordReceiver;
+Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(
+    AudioTrackState state) async {
 
-  // return NativeAudioConfiguration(
-  //   appleAudioCategory: AppleAudioCategory.playAndRecord,
-  //   appleAudioCategoryOptions: {
-  //     AppleAudioCategoryOption.allowBluetooth,
-  //     AppleAudioCategoryOption.allowBluetoothA2DP,
-  //     AppleAudioCategoryOption.allowAirPlay,
-  //   },
-  //   appleAudioMode: AppleAudioMode.voiceChat,
-  // );
+
+  //! START: PREV VERSION ONLY RETURN THIS
+  // return NativeAudioConfiguration.playAndRecordReceiver;
+  //! END
+  if (state == AudioTrackState.none) {
+    return NativeAudioConfiguration.soloAmbient;
+  } else if (state == AudioTrackState.remoteOnly &&
+      Hardware.instance.preferSpeakerOutput) {
+    return NativeAudioConfiguration.playback;
+  }
+
+  return Hardware.instance.preferSpeakerOutput
+      ? NativeAudioConfiguration.playAndRecordSpeaker
+      : NativeAudioConfiguration.playAndRecordReceiver;
+}
+
+class NativeAudioManagement {
+  static Future<void> start() async {
+    // Audio configuration for Android.
+    if (lkPlatformIs(PlatformType.android)) {
+      if (Native.bypassVoiceProcessing) {
+        await rtc.Helper.setAndroidAudioConfiguration(
+            rtc.AndroidAudioConfiguration.media);
+      } else {
+        await rtc.Helper.setAndroidAudioConfiguration(
+            rtc.AndroidAudioConfiguration.communication);
+      }
+    }
+  }
+
+  static Future<void> stop() async {
+    if (lkPlatformIs(PlatformType.android)) {
+      await rtc.Helper.clearAndroidCommunicationDevice();
+    }
+  }
 }

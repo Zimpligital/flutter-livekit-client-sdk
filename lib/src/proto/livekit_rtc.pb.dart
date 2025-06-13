@@ -14,8 +14,8 @@ import 'dart:core' as $core;
 import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'package:protobuf/protobuf.dart' as $pb;
 
-import 'livekit_models.pb.dart' as $1;
-import 'livekit_models.pbenum.dart' as $1;
+import 'livekit_models.pb.dart' as $2;
+import 'livekit_models.pbenum.dart' as $2;
 import 'livekit_rtc.pbenum.dart';
 
 export 'livekit_rtc.pbenum.dart';
@@ -1139,19 +1139,20 @@ class AddTrackRequest extends $pb.GeneratedMessage {
   factory AddTrackRequest({
     $core.String? cid,
     $core.String? name,
-    $1.TrackType? type,
+    $2.TrackType? type,
     $core.int? width,
     $core.int? height,
     $core.bool? muted,
     $core.bool? disableDtx,
-    $1.TrackSource? source,
-    $core.Iterable<$1.VideoLayer>? layers,
+    $2.TrackSource? source,
+    $core.Iterable<$2.VideoLayer>? layers,
     $core.Iterable<SimulcastCodec>? simulcastCodecs,
     $core.String? sid,
     $core.bool? stereo,
     $core.bool? disableRed,
-    $1.Encryption_Type? encryption,
+    $2.Encryption_Type? encryption,
     $core.String? stream,
+    $2.BackupCodecPolicy? backupCodecPolicy,
   }) {
     final $result = create();
     if (cid != null) {
@@ -1199,6 +1200,9 @@ class AddTrackRequest extends $pb.GeneratedMessage {
     if (stream != null) {
       $result.stream = stream;
     }
+    if (backupCodecPolicy != null) {
+      $result.backupCodecPolicy = backupCodecPolicy;
+    }
     return $result;
   }
   AddTrackRequest._() : super();
@@ -1215,32 +1219,37 @@ class AddTrackRequest extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'cid')
     ..aOS(2, _omitFieldNames ? '' : 'name')
-    ..e<$1.TrackType>(3, _omitFieldNames ? '' : 'type', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.TrackType.AUDIO,
-        valueOf: $1.TrackType.valueOf,
-        enumValues: $1.TrackType.values)
+    ..e<$2.TrackType>(3, _omitFieldNames ? '' : 'type', $pb.PbFieldType.OE,
+        defaultOrMaker: $2.TrackType.AUDIO,
+        valueOf: $2.TrackType.valueOf,
+        enumValues: $2.TrackType.values)
     ..a<$core.int>(4, _omitFieldNames ? '' : 'width', $pb.PbFieldType.OU3)
     ..a<$core.int>(5, _omitFieldNames ? '' : 'height', $pb.PbFieldType.OU3)
     ..aOB(6, _omitFieldNames ? '' : 'muted')
     ..aOB(7, _omitFieldNames ? '' : 'disableDtx')
-    ..e<$1.TrackSource>(8, _omitFieldNames ? '' : 'source', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.TrackSource.UNKNOWN,
-        valueOf: $1.TrackSource.valueOf,
-        enumValues: $1.TrackSource.values)
-    ..pc<$1.VideoLayer>(9, _omitFieldNames ? '' : 'layers', $pb.PbFieldType.PM,
-        subBuilder: $1.VideoLayer.create)
+    ..e<$2.TrackSource>(8, _omitFieldNames ? '' : 'source', $pb.PbFieldType.OE,
+        defaultOrMaker: $2.TrackSource.UNKNOWN,
+        valueOf: $2.TrackSource.valueOf,
+        enumValues: $2.TrackSource.values)
+    ..pc<$2.VideoLayer>(9, _omitFieldNames ? '' : 'layers', $pb.PbFieldType.PM,
+        subBuilder: $2.VideoLayer.create)
     ..pc<SimulcastCodec>(
         10, _omitFieldNames ? '' : 'simulcastCodecs', $pb.PbFieldType.PM,
         subBuilder: SimulcastCodec.create)
     ..aOS(11, _omitFieldNames ? '' : 'sid')
     ..aOB(12, _omitFieldNames ? '' : 'stereo')
     ..aOB(13, _omitFieldNames ? '' : 'disableRed')
-    ..e<$1.Encryption_Type>(
+    ..e<$2.Encryption_Type>(
         14, _omitFieldNames ? '' : 'encryption', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.Encryption_Type.NONE,
-        valueOf: $1.Encryption_Type.valueOf,
-        enumValues: $1.Encryption_Type.values)
+        defaultOrMaker: $2.Encryption_Type.NONE,
+        valueOf: $2.Encryption_Type.valueOf,
+        enumValues: $2.Encryption_Type.values)
     ..aOS(15, _omitFieldNames ? '' : 'stream')
+    ..e<$2.BackupCodecPolicy>(
+        16, _omitFieldNames ? '' : 'backupCodecPolicy', $pb.PbFieldType.OE,
+        defaultOrMaker: $2.BackupCodecPolicy.PREFER_REGRESSION,
+        valueOf: $2.BackupCodecPolicy.valueOf,
+        enumValues: $2.BackupCodecPolicy.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -1292,9 +1301,9 @@ class AddTrackRequest extends $pb.GeneratedMessage {
   void clearName() => clearField(2);
 
   @$pb.TagNumber(3)
-  $1.TrackType get type => $_getN(2);
+  $2.TrackType get type => $_getN(2);
   @$pb.TagNumber(3)
-  set type($1.TrackType v) {
+  set type($2.TrackType v) {
     setField(3, v);
   }
 
@@ -1355,9 +1364,9 @@ class AddTrackRequest extends $pb.GeneratedMessage {
   void clearDisableDtx() => clearField(7);
 
   @$pb.TagNumber(8)
-  $1.TrackSource get source => $_getN(7);
+  $2.TrackSource get source => $_getN(7);
   @$pb.TagNumber(8)
-  set source($1.TrackSource v) {
+  set source($2.TrackSource v) {
     setField(8, v);
   }
 
@@ -1367,7 +1376,7 @@ class AddTrackRequest extends $pb.GeneratedMessage {
   void clearSource() => clearField(8);
 
   @$pb.TagNumber(9)
-  $core.List<$1.VideoLayer> get layers => $_getList(8);
+  $core.List<$2.VideoLayer> get layers => $_getList(8);
 
   @$pb.TagNumber(10)
   $core.List<SimulcastCodec> get simulcastCodecs => $_getList(9);
@@ -1411,9 +1420,9 @@ class AddTrackRequest extends $pb.GeneratedMessage {
   void clearDisableRed() => clearField(13);
 
   @$pb.TagNumber(14)
-  $1.Encryption_Type get encryption => $_getN(13);
+  $2.Encryption_Type get encryption => $_getN(13);
   @$pb.TagNumber(14)
-  set encryption($1.Encryption_Type v) {
+  set encryption($2.Encryption_Type v) {
     setField(14, v);
   }
 
@@ -1435,6 +1444,18 @@ class AddTrackRequest extends $pb.GeneratedMessage {
   $core.bool hasStream() => $_has(14);
   @$pb.TagNumber(15)
   void clearStream() => clearField(15);
+
+  @$pb.TagNumber(16)
+  $2.BackupCodecPolicy get backupCodecPolicy => $_getN(15);
+  @$pb.TagNumber(16)
+  set backupCodecPolicy($2.BackupCodecPolicy v) {
+    setField(16, v);
+  }
+
+  @$pb.TagNumber(16)
+  $core.bool hasBackupCodecPolicy() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearBackupCodecPolicy() => clearField(16);
 }
 
 class TrickleRequest extends $pb.GeneratedMessage {
@@ -1615,19 +1636,21 @@ class MuteTrackRequest extends $pb.GeneratedMessage {
 
 class JoinResponse extends $pb.GeneratedMessage {
   factory JoinResponse({
-    $1.Room? room,
-    $1.ParticipantInfo? participant,
-    $core.Iterable<$1.ParticipantInfo>? otherParticipants,
+    $2.Room? room,
+    $2.ParticipantInfo? participant,
+    $core.Iterable<$2.ParticipantInfo>? otherParticipants,
     $core.String? serverVersion,
     $core.Iterable<ICEServer>? iceServers,
     $core.bool? subscriberPrimary,
     $core.String? alternativeUrl,
-    $1.ClientConfiguration? clientConfiguration,
+    $2.ClientConfiguration? clientConfiguration,
     $core.String? serverRegion,
     $core.int? pingTimeout,
     $core.int? pingInterval,
-    $1.ServerInfo? serverInfo,
+    $2.ServerInfo? serverInfo,
     $core.List<$core.int>? sifTrailer,
+    $core.Iterable<$2.Codec>? enabledPublishCodecs,
+    $core.bool? fastPublish,
   }) {
     final $result = create();
     if (room != null) {
@@ -1669,6 +1692,12 @@ class JoinResponse extends $pb.GeneratedMessage {
     if (sifTrailer != null) {
       $result.sifTrailer = sifTrailer;
     }
+    if (enabledPublishCodecs != null) {
+      $result.enabledPublishCodecs.addAll(enabledPublishCodecs);
+    }
+    if (fastPublish != null) {
+      $result.fastPublish = fastPublish;
+    }
     return $result;
   }
   JoinResponse._() : super();
@@ -1683,28 +1712,32 @@ class JoinResponse extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'JoinResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
-    ..aOM<$1.Room>(1, _omitFieldNames ? '' : 'room', subBuilder: $1.Room.create)
-    ..aOM<$1.ParticipantInfo>(2, _omitFieldNames ? '' : 'participant',
-        subBuilder: $1.ParticipantInfo.create)
-    ..pc<$1.ParticipantInfo>(
+    ..aOM<$2.Room>(1, _omitFieldNames ? '' : 'room', subBuilder: $2.Room.create)
+    ..aOM<$2.ParticipantInfo>(2, _omitFieldNames ? '' : 'participant',
+        subBuilder: $2.ParticipantInfo.create)
+    ..pc<$2.ParticipantInfo>(
         3, _omitFieldNames ? '' : 'otherParticipants', $pb.PbFieldType.PM,
-        subBuilder: $1.ParticipantInfo.create)
+        subBuilder: $2.ParticipantInfo.create)
     ..aOS(4, _omitFieldNames ? '' : 'serverVersion')
     ..pc<ICEServer>(5, _omitFieldNames ? '' : 'iceServers', $pb.PbFieldType.PM,
         subBuilder: ICEServer.create)
     ..aOB(6, _omitFieldNames ? '' : 'subscriberPrimary')
     ..aOS(7, _omitFieldNames ? '' : 'alternativeUrl')
-    ..aOM<$1.ClientConfiguration>(
+    ..aOM<$2.ClientConfiguration>(
         8, _omitFieldNames ? '' : 'clientConfiguration',
-        subBuilder: $1.ClientConfiguration.create)
+        subBuilder: $2.ClientConfiguration.create)
     ..aOS(9, _omitFieldNames ? '' : 'serverRegion')
     ..a<$core.int>(10, _omitFieldNames ? '' : 'pingTimeout', $pb.PbFieldType.O3)
     ..a<$core.int>(
         11, _omitFieldNames ? '' : 'pingInterval', $pb.PbFieldType.O3)
-    ..aOM<$1.ServerInfo>(12, _omitFieldNames ? '' : 'serverInfo',
-        subBuilder: $1.ServerInfo.create)
+    ..aOM<$2.ServerInfo>(12, _omitFieldNames ? '' : 'serverInfo',
+        subBuilder: $2.ServerInfo.create)
     ..a<$core.List<$core.int>>(
         13, _omitFieldNames ? '' : 'sifTrailer', $pb.PbFieldType.OY)
+    ..pc<$2.Codec>(
+        14, _omitFieldNames ? '' : 'enabledPublishCodecs', $pb.PbFieldType.PM,
+        subBuilder: $2.Codec.create)
+    ..aOB(15, _omitFieldNames ? '' : 'fastPublish')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -1731,9 +1764,9 @@ class JoinResponse extends $pb.GeneratedMessage {
   static JoinResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $1.Room get room => $_getN(0);
+  $2.Room get room => $_getN(0);
   @$pb.TagNumber(1)
-  set room($1.Room v) {
+  set room($2.Room v) {
     setField(1, v);
   }
 
@@ -1742,12 +1775,12 @@ class JoinResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearRoom() => clearField(1);
   @$pb.TagNumber(1)
-  $1.Room ensureRoom() => $_ensure(0);
+  $2.Room ensureRoom() => $_ensure(0);
 
   @$pb.TagNumber(2)
-  $1.ParticipantInfo get participant => $_getN(1);
+  $2.ParticipantInfo get participant => $_getN(1);
   @$pb.TagNumber(2)
-  set participant($1.ParticipantInfo v) {
+  set participant($2.ParticipantInfo v) {
     setField(2, v);
   }
 
@@ -1756,10 +1789,10 @@ class JoinResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearParticipant() => clearField(2);
   @$pb.TagNumber(2)
-  $1.ParticipantInfo ensureParticipant() => $_ensure(1);
+  $2.ParticipantInfo ensureParticipant() => $_ensure(1);
 
   @$pb.TagNumber(3)
-  $core.List<$1.ParticipantInfo> get otherParticipants => $_getList(2);
+  $core.List<$2.ParticipantInfo> get otherParticipants => $_getList(2);
 
   /// deprecated. use server_info.version instead.
   @$pb.TagNumber(4)
@@ -1805,9 +1838,9 @@ class JoinResponse extends $pb.GeneratedMessage {
   void clearAlternativeUrl() => clearField(7);
 
   @$pb.TagNumber(8)
-  $1.ClientConfiguration get clientConfiguration => $_getN(7);
+  $2.ClientConfiguration get clientConfiguration => $_getN(7);
   @$pb.TagNumber(8)
-  set clientConfiguration($1.ClientConfiguration v) {
+  set clientConfiguration($2.ClientConfiguration v) {
     setField(8, v);
   }
 
@@ -1816,7 +1849,7 @@ class JoinResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   void clearClientConfiguration() => clearField(8);
   @$pb.TagNumber(8)
-  $1.ClientConfiguration ensureClientConfiguration() => $_ensure(7);
+  $2.ClientConfiguration ensureClientConfiguration() => $_ensure(7);
 
   /// deprecated. use server_info.region instead.
   @$pb.TagNumber(9)
@@ -1856,9 +1889,9 @@ class JoinResponse extends $pb.GeneratedMessage {
   void clearPingInterval() => clearField(11);
 
   @$pb.TagNumber(12)
-  $1.ServerInfo get serverInfo => $_getN(11);
+  $2.ServerInfo get serverInfo => $_getN(11);
   @$pb.TagNumber(12)
-  set serverInfo($1.ServerInfo v) {
+  set serverInfo($2.ServerInfo v) {
     setField(12, v);
   }
 
@@ -1867,7 +1900,7 @@ class JoinResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(12)
   void clearServerInfo() => clearField(12);
   @$pb.TagNumber(12)
-  $1.ServerInfo ensureServerInfo() => $_ensure(11);
+  $2.ServerInfo ensureServerInfo() => $_ensure(11);
 
   /// Server-Injected-Frame byte trailer, used to identify unencrypted frames when e2ee is enabled
   @$pb.TagNumber(13)
@@ -1881,12 +1914,28 @@ class JoinResponse extends $pb.GeneratedMessage {
   $core.bool hasSifTrailer() => $_has(12);
   @$pb.TagNumber(13)
   void clearSifTrailer() => clearField(13);
+
+  @$pb.TagNumber(14)
+  $core.List<$2.Codec> get enabledPublishCodecs => $_getList(13);
+
+  /// when set, client should attempt to establish publish peer connection when joining room to speed up publishing
+  @$pb.TagNumber(15)
+  $core.bool get fastPublish => $_getBF(14);
+  @$pb.TagNumber(15)
+  set fastPublish($core.bool v) {
+    $_setBool(14, v);
+  }
+
+  @$pb.TagNumber(15)
+  $core.bool hasFastPublish() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearFastPublish() => clearField(15);
 }
 
 class ReconnectResponse extends $pb.GeneratedMessage {
   factory ReconnectResponse({
     $core.Iterable<ICEServer>? iceServers,
-    $1.ClientConfiguration? clientConfiguration,
+    $2.ClientConfiguration? clientConfiguration,
   }) {
     final $result = create();
     if (iceServers != null) {
@@ -1911,9 +1960,9 @@ class ReconnectResponse extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..pc<ICEServer>(1, _omitFieldNames ? '' : 'iceServers', $pb.PbFieldType.PM,
         subBuilder: ICEServer.create)
-    ..aOM<$1.ClientConfiguration>(
+    ..aOM<$2.ClientConfiguration>(
         2, _omitFieldNames ? '' : 'clientConfiguration',
-        subBuilder: $1.ClientConfiguration.create)
+        subBuilder: $2.ClientConfiguration.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -1943,9 +1992,9 @@ class ReconnectResponse extends $pb.GeneratedMessage {
   $core.List<ICEServer> get iceServers => $_getList(0);
 
   @$pb.TagNumber(2)
-  $1.ClientConfiguration get clientConfiguration => $_getN(1);
+  $2.ClientConfiguration get clientConfiguration => $_getN(1);
   @$pb.TagNumber(2)
-  set clientConfiguration($1.ClientConfiguration v) {
+  set clientConfiguration($2.ClientConfiguration v) {
     setField(2, v);
   }
 
@@ -1954,13 +2003,13 @@ class ReconnectResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearClientConfiguration() => clearField(2);
   @$pb.TagNumber(2)
-  $1.ClientConfiguration ensureClientConfiguration() => $_ensure(1);
+  $2.ClientConfiguration ensureClientConfiguration() => $_ensure(1);
 }
 
 class TrackPublishedResponse extends $pb.GeneratedMessage {
   factory TrackPublishedResponse({
     $core.String? cid,
-    $1.TrackInfo? track,
+    $2.TrackInfo? track,
   }) {
     final $result = create();
     if (cid != null) {
@@ -1984,8 +2033,8 @@ class TrackPublishedResponse extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'cid')
-    ..aOM<$1.TrackInfo>(2, _omitFieldNames ? '' : 'track',
-        subBuilder: $1.TrackInfo.create)
+    ..aOM<$2.TrackInfo>(2, _omitFieldNames ? '' : 'track',
+        subBuilder: $2.TrackInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -2026,9 +2075,9 @@ class TrackPublishedResponse extends $pb.GeneratedMessage {
   void clearCid() => clearField(1);
 
   @$pb.TagNumber(2)
-  $1.TrackInfo get track => $_getN(1);
+  $2.TrackInfo get track => $_getN(1);
   @$pb.TagNumber(2)
-  set track($1.TrackInfo v) {
+  set track($2.TrackInfo v) {
     setField(2, v);
   }
 
@@ -2037,7 +2086,7 @@ class TrackPublishedResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   void clearTrack() => clearField(2);
   @$pb.TagNumber(2)
-  $1.TrackInfo ensureTrack() => $_ensure(1);
+  $2.TrackInfo ensureTrack() => $_ensure(1);
 }
 
 class TrackUnpublishedResponse extends $pb.GeneratedMessage {
@@ -2183,7 +2232,7 @@ class SessionDescription extends $pb.GeneratedMessage {
 
 class ParticipantUpdate extends $pb.GeneratedMessage {
   factory ParticipantUpdate({
-    $core.Iterable<$1.ParticipantInfo>? participants,
+    $core.Iterable<$2.ParticipantInfo>? participants,
   }) {
     final $result = create();
     if (participants != null) {
@@ -2203,9 +2252,9 @@ class ParticipantUpdate extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'ParticipantUpdate',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
-    ..pc<$1.ParticipantInfo>(
+    ..pc<$2.ParticipantInfo>(
         1, _omitFieldNames ? '' : 'participants', $pb.PbFieldType.PM,
-        subBuilder: $1.ParticipantInfo.create)
+        subBuilder: $2.ParticipantInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -2232,14 +2281,14 @@ class ParticipantUpdate extends $pb.GeneratedMessage {
   static ParticipantUpdate? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<$1.ParticipantInfo> get participants => $_getList(0);
+  $core.List<$2.ParticipantInfo> get participants => $_getList(0);
 }
 
 class UpdateSubscription extends $pb.GeneratedMessage {
   factory UpdateSubscription({
     $core.Iterable<$core.String>? trackSids,
     $core.bool? subscribe,
-    $core.Iterable<$1.ParticipantTracks>? participantTracks,
+    $core.Iterable<$2.ParticipantTracks>? participantTracks,
   }) {
     final $result = create();
     if (trackSids != null) {
@@ -2267,9 +2316,9 @@ class UpdateSubscription extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'trackSids')
     ..aOB(2, _omitFieldNames ? '' : 'subscribe')
-    ..pc<$1.ParticipantTracks>(
+    ..pc<$2.ParticipantTracks>(
         3, _omitFieldNames ? '' : 'participantTracks', $pb.PbFieldType.PM,
-        subBuilder: $1.ParticipantTracks.create)
+        subBuilder: $2.ParticipantTracks.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -2311,14 +2360,14 @@ class UpdateSubscription extends $pb.GeneratedMessage {
   void clearSubscribe() => clearField(2);
 
   @$pb.TagNumber(3)
-  $core.List<$1.ParticipantTracks> get participantTracks => $_getList(2);
+  $core.List<$2.ParticipantTracks> get participantTracks => $_getList(2);
 }
 
 class UpdateTrackSettings extends $pb.GeneratedMessage {
   factory UpdateTrackSettings({
     $core.Iterable<$core.String>? trackSids,
     $core.bool? disabled,
-    $1.VideoQuality? quality,
+    $2.VideoQuality? quality,
     $core.int? width,
     $core.int? height,
     $core.int? fps,
@@ -2362,11 +2411,11 @@ class UpdateTrackSettings extends $pb.GeneratedMessage {
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'trackSids')
     ..aOB(3, _omitFieldNames ? '' : 'disabled')
-    ..e<$1.VideoQuality>(
+    ..e<$2.VideoQuality>(
         4, _omitFieldNames ? '' : 'quality', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.VideoQuality.LOW,
-        valueOf: $1.VideoQuality.valueOf,
-        enumValues: $1.VideoQuality.values)
+        defaultOrMaker: $2.VideoQuality.LOW,
+        valueOf: $2.VideoQuality.valueOf,
+        enumValues: $2.VideoQuality.values)
     ..a<$core.int>(5, _omitFieldNames ? '' : 'width', $pb.PbFieldType.OU3)
     ..a<$core.int>(6, _omitFieldNames ? '' : 'height', $pb.PbFieldType.OU3)
     ..a<$core.int>(7, _omitFieldNames ? '' : 'fps', $pb.PbFieldType.OU3)
@@ -2414,9 +2463,9 @@ class UpdateTrackSettings extends $pb.GeneratedMessage {
 
   /// deprecated in favor of width & height
   @$pb.TagNumber(4)
-  $1.VideoQuality get quality => $_getN(2);
+  $2.VideoQuality get quality => $_getN(2);
   @$pb.TagNumber(4)
-  set quality($1.VideoQuality v) {
+  set quality($2.VideoQuality v) {
     setField(4, v);
   }
 
@@ -2486,7 +2535,7 @@ class UpdateTrackSettings extends $pb.GeneratedMessage {
 class UpdateLocalAudioTrack extends $pb.GeneratedMessage {
   factory UpdateLocalAudioTrack({
     $core.String? trackSid,
-    $core.Iterable<$1.AudioTrackFeature>? features,
+    $core.Iterable<$2.AudioTrackFeature>? features,
   }) {
     final $result = create();
     if (trackSid != null) {
@@ -2510,11 +2559,11 @@ class UpdateLocalAudioTrack extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'trackSid')
-    ..pc<$1.AudioTrackFeature>(
+    ..pc<$2.AudioTrackFeature>(
         2, _omitFieldNames ? '' : 'features', $pb.PbFieldType.KE,
-        valueOf: $1.AudioTrackFeature.valueOf,
-        enumValues: $1.AudioTrackFeature.values,
-        defaultEnumValue: $1.AudioTrackFeature.TF_STEREO)
+        valueOf: $2.AudioTrackFeature.valueOf,
+        enumValues: $2.AudioTrackFeature.values,
+        defaultEnumValue: $2.AudioTrackFeature.TF_STEREO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -2555,7 +2604,7 @@ class UpdateLocalAudioTrack extends $pb.GeneratedMessage {
   void clearTrackSid() => clearField(1);
 
   @$pb.TagNumber(2)
-  $core.List<$1.AudioTrackFeature> get features => $_getList(1);
+  $core.List<$2.AudioTrackFeature> get features => $_getList(1);
 }
 
 class UpdateLocalVideoTrack extends $pb.GeneratedMessage {
@@ -2658,7 +2707,7 @@ class UpdateLocalVideoTrack extends $pb.GeneratedMessage {
 class LeaveRequest extends $pb.GeneratedMessage {
   factory LeaveRequest({
     $core.bool? canReconnect,
-    $1.DisconnectReason? reason,
+    $2.DisconnectReason? reason,
     LeaveRequest_Action? action,
     RegionSettings? regions,
   }) {
@@ -2690,11 +2739,11 @@ class LeaveRequest extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
     ..aOB(1, _omitFieldNames ? '' : 'canReconnect')
-    ..e<$1.DisconnectReason>(
+    ..e<$2.DisconnectReason>(
         2, _omitFieldNames ? '' : 'reason', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.DisconnectReason.UNKNOWN_REASON,
-        valueOf: $1.DisconnectReason.valueOf,
-        enumValues: $1.DisconnectReason.values)
+        defaultOrMaker: $2.DisconnectReason.UNKNOWN_REASON,
+        valueOf: $2.DisconnectReason.valueOf,
+        enumValues: $2.DisconnectReason.values)
     ..e<LeaveRequest_Action>(
         3, _omitFieldNames ? '' : 'action', $pb.PbFieldType.OE,
         defaultOrMaker: LeaveRequest_Action.DISCONNECT,
@@ -2743,9 +2792,9 @@ class LeaveRequest extends $pb.GeneratedMessage {
   void clearCanReconnect() => clearField(1);
 
   @$pb.TagNumber(2)
-  $1.DisconnectReason get reason => $_getN(1);
+  $2.DisconnectReason get reason => $_getN(1);
   @$pb.TagNumber(2)
-  set reason($1.DisconnectReason v) {
+  set reason($2.DisconnectReason v) {
     setField(2, v);
   }
 
@@ -2785,7 +2834,7 @@ class LeaveRequest extends $pb.GeneratedMessage {
 class UpdateVideoLayers extends $pb.GeneratedMessage {
   factory UpdateVideoLayers({
     $core.String? trackSid,
-    $core.Iterable<$1.VideoLayer>? layers,
+    $core.Iterable<$2.VideoLayer>? layers,
   }) {
     final $result = create();
     if (trackSid != null) {
@@ -2809,8 +2858,8 @@ class UpdateVideoLayers extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'trackSid')
-    ..pc<$1.VideoLayer>(2, _omitFieldNames ? '' : 'layers', $pb.PbFieldType.PM,
-        subBuilder: $1.VideoLayer.create)
+    ..pc<$2.VideoLayer>(2, _omitFieldNames ? '' : 'layers', $pb.PbFieldType.PM,
+        subBuilder: $2.VideoLayer.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -2849,7 +2898,7 @@ class UpdateVideoLayers extends $pb.GeneratedMessage {
   void clearTrackSid() => clearField(1);
 
   @$pb.TagNumber(2)
-  $core.List<$1.VideoLayer> get layers => $_getList(1);
+  $core.List<$2.VideoLayer> get layers => $_getList(1);
 }
 
 class UpdateParticipantMetadata extends $pb.GeneratedMessage {
@@ -3049,7 +3098,7 @@ class ICEServer extends $pb.GeneratedMessage {
 
 class SpeakersChanged extends $pb.GeneratedMessage {
   factory SpeakersChanged({
-    $core.Iterable<$1.SpeakerInfo>? speakers,
+    $core.Iterable<$2.SpeakerInfo>? speakers,
   }) {
     final $result = create();
     if (speakers != null) {
@@ -3069,9 +3118,9 @@ class SpeakersChanged extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'SpeakersChanged',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
-    ..pc<$1.SpeakerInfo>(
+    ..pc<$2.SpeakerInfo>(
         1, _omitFieldNames ? '' : 'speakers', $pb.PbFieldType.PM,
-        subBuilder: $1.SpeakerInfo.create)
+        subBuilder: $2.SpeakerInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -3098,12 +3147,12 @@ class SpeakersChanged extends $pb.GeneratedMessage {
   static SpeakersChanged? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.List<$1.SpeakerInfo> get speakers => $_getList(0);
+  $core.List<$2.SpeakerInfo> get speakers => $_getList(0);
 }
 
 class RoomUpdate extends $pb.GeneratedMessage {
   factory RoomUpdate({
-    $1.Room? room,
+    $2.Room? room,
   }) {
     final $result = create();
     if (room != null) {
@@ -3123,7 +3172,7 @@ class RoomUpdate extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'RoomUpdate',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
-    ..aOM<$1.Room>(1, _omitFieldNames ? '' : 'room', subBuilder: $1.Room.create)
+    ..aOM<$2.Room>(1, _omitFieldNames ? '' : 'room', subBuilder: $2.Room.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -3148,9 +3197,9 @@ class RoomUpdate extends $pb.GeneratedMessage {
   static RoomUpdate? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $1.Room get room => $_getN(0);
+  $2.Room get room => $_getN(0);
   @$pb.TagNumber(1)
-  set room($1.Room v) {
+  set room($2.Room v) {
     setField(1, v);
   }
 
@@ -3159,13 +3208,13 @@ class RoomUpdate extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearRoom() => clearField(1);
   @$pb.TagNumber(1)
-  $1.Room ensureRoom() => $_ensure(0);
+  $2.Room ensureRoom() => $_ensure(0);
 }
 
 class ConnectionQualityInfo extends $pb.GeneratedMessage {
   factory ConnectionQualityInfo({
     $core.String? participantSid,
-    $1.ConnectionQuality? quality,
+    $2.ConnectionQuality? quality,
     $core.double? score,
   }) {
     final $result = create();
@@ -3193,11 +3242,11 @@ class ConnectionQualityInfo extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'participantSid')
-    ..e<$1.ConnectionQuality>(
+    ..e<$2.ConnectionQuality>(
         2, _omitFieldNames ? '' : 'quality', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.ConnectionQuality.POOR,
-        valueOf: $1.ConnectionQuality.valueOf,
-        enumValues: $1.ConnectionQuality.values)
+        defaultOrMaker: $2.ConnectionQuality.POOR,
+        valueOf: $2.ConnectionQuality.valueOf,
+        enumValues: $2.ConnectionQuality.values)
     ..a<$core.double>(3, _omitFieldNames ? '' : 'score', $pb.PbFieldType.OF)
     ..hasRequiredFields = false;
 
@@ -3239,9 +3288,9 @@ class ConnectionQualityInfo extends $pb.GeneratedMessage {
   void clearParticipantSid() => clearField(1);
 
   @$pb.TagNumber(2)
-  $1.ConnectionQuality get quality => $_getN(1);
+  $2.ConnectionQuality get quality => $_getN(1);
   @$pb.TagNumber(2)
-  set quality($1.ConnectionQuality v) {
+  set quality($2.ConnectionQuality v) {
     setField(2, v);
   }
 
@@ -3473,7 +3522,7 @@ class StreamStateUpdate extends $pb.GeneratedMessage {
 
 class SubscribedQuality extends $pb.GeneratedMessage {
   factory SubscribedQuality({
-    $1.VideoQuality? quality,
+    $2.VideoQuality? quality,
     $core.bool? enabled,
   }) {
     final $result = create();
@@ -3497,11 +3546,11 @@ class SubscribedQuality extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'SubscribedQuality',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
-    ..e<$1.VideoQuality>(
+    ..e<$2.VideoQuality>(
         1, _omitFieldNames ? '' : 'quality', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.VideoQuality.LOW,
-        valueOf: $1.VideoQuality.valueOf,
-        enumValues: $1.VideoQuality.values)
+        defaultOrMaker: $2.VideoQuality.LOW,
+        valueOf: $2.VideoQuality.valueOf,
+        enumValues: $2.VideoQuality.values)
     ..aOB(2, _omitFieldNames ? '' : 'enabled')
     ..hasRequiredFields = false;
 
@@ -3529,9 +3578,9 @@ class SubscribedQuality extends $pb.GeneratedMessage {
   static SubscribedQuality? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $1.VideoQuality get quality => $_getN(0);
+  $2.VideoQuality get quality => $_getN(0);
   @$pb.TagNumber(1)
-  set quality($1.VideoQuality v) {
+  set quality($2.VideoQuality v) {
     setField(1, v);
   }
 
@@ -4760,7 +4809,7 @@ class RegionInfo extends $pb.GeneratedMessage {
 class SubscriptionResponse extends $pb.GeneratedMessage {
   factory SubscriptionResponse({
     $core.String? trackSid,
-    $1.SubscriptionError? err,
+    $2.SubscriptionError? err,
   }) {
     final $result = create();
     if (trackSid != null) {
@@ -4784,11 +4833,11 @@ class SubscriptionResponse extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'livekit'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'trackSid')
-    ..e<$1.SubscriptionError>(
+    ..e<$2.SubscriptionError>(
         2, _omitFieldNames ? '' : 'err', $pb.PbFieldType.OE,
-        defaultOrMaker: $1.SubscriptionError.SE_UNKNOWN,
-        valueOf: $1.SubscriptionError.valueOf,
-        enumValues: $1.SubscriptionError.values)
+        defaultOrMaker: $2.SubscriptionError.SE_UNKNOWN,
+        valueOf: $2.SubscriptionError.valueOf,
+        enumValues: $2.SubscriptionError.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('Using this can add significant overhead to your binary. '
@@ -4828,9 +4877,9 @@ class SubscriptionResponse extends $pb.GeneratedMessage {
   void clearTrackSid() => clearField(1);
 
   @$pb.TagNumber(2)
-  $1.SubscriptionError get err => $_getN(1);
+  $2.SubscriptionError get err => $_getN(1);
   @$pb.TagNumber(2)
-  set err($1.SubscriptionError v) {
+  set err($2.SubscriptionError v) {
     setField(2, v);
   }
 

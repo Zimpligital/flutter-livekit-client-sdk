@@ -44,11 +44,20 @@ export 'src/track/remote/audio.dart';
 export 'src/track/remote/remote.dart';
 export 'src/track/remote/video.dart';
 export 'src/track/track.dart';
+
 export 'src/track/processor.dart';
+export 'src/track/processor_native.dart'
+    if (dart.library.js_interop) 'src/track/processor_web.dart';
+
+export 'src/track/audio_visualizer.dart';
 export 'src/types/other.dart';
 export 'src/types/participant_permissions.dart';
 export 'src/types/video_dimensions.dart';
 export 'src/types/video_encoding.dart';
 export 'src/types/video_parameters.dart';
+export 'src/types/rpc.dart';
 export 'src/widgets/screen_select_dialog.dart';
 export 'src/widgets/video_track_renderer.dart';
+export 'src/data_stream/stream_reader.dart';
+export 'src/data_stream/stream_writer.dart';
+export 'src/types/data_stream.dart';

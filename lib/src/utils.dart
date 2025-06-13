@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -626,7 +627,8 @@ String mimeTypeToVideoCodecString(String mimeType) {
   }
   final codec = mimeType.split('/')[1].toLowerCase();
   if (!videoCodecs.contains(codec)) {
-    throw Exception('Video codec not supported: $codec');
+    logger.warning('Video codec not supported: $codec');
+    return '';
   }
   return codec;
 }
@@ -696,4 +698,52 @@ Map mapDiff(Map left, Map right) {
 
   return {...diff, ...rightCopy}
     ..removeWhere((key, value) => (value is Map && value.isEmpty));
+}
+
+int compareVersions(String v1, String v2) {
+  final parts1 = v1.split('.');
+  final parts2 = v2.split('.');
+  final k = math.min(parts1.length, parts2.length);
+  for (var i = 0; i < k; ++i) {
+    final p1 = int.parse(parts1[i]);
+    final p2 = int.parse(parts2[i]);
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
+    if (i == k - 1 && p1 == p2) return 0;
+  }
+  if (v1 == '' && v2 != '') {
+    return -1;
+  } else if (v2 == '') {
+    return 1;
+  }
+  return parts1.length == parts2.length
+      ? 0
+      : parts1.length < parts2.length
+          ? -1
+          : 1;
+}
+
+List<Uint8List> splitUtf8(String s, int n) {
+  if (n < 4) {
+    throw Exception('n must be at least 4 due to utf8 encoding rules');
+  }
+  // adapted from https://stackoverflow.com/a/6043797
+  List<Uint8List> result = [];
+  var encoded = utf8.encode(s);
+  while (encoded.length > n) {
+    var k = n;
+    while (k > 0) {
+      var byte = encoded[k];
+      if ((byte & 0xc0) != 0x80) {
+        break;
+      }
+      k--;
+    }
+    result.add(encoded.sublist(0, k));
+    encoded = encoded.sublist(k);
+  }
+  if (encoded.isNotEmpty) {
+    result.add(encoded);
+  }
+  return result;
 }

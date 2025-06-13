@@ -115,13 +115,13 @@ class RoomOptions {
   /// Options for end-to-end encryption.
   final E2EEOptions? e2eeOptions;
 
-  /// audio visualizer is disabled by default
-  /// When enabled, the native layer will register an FFI audio analyzer
-  /// and will emit AudioVisualizerEvent events from AudioTrack.
-  /// You can use SoundWaveformWidget (example/lib/widgets/sound_waveform.dart)
-  /// to display the audio wave. Or write a custom widget to visualize the audio
-  /// wave.
-  final bool enableVisualizer;
+  /// fast track publication
+  final bool fastPublish;
+
+  /// deprecated, use [createVisualizer] instead
+  /// please refer to example/lib/widgets/sound_waveform.dart
+  @Deprecated('Use createVisualizer instead')
+  final bool? enableVisualizer;
 
   const RoomOptions({
     this.defaultCameraCaptureOptions = const CameraCaptureOptions(),
@@ -135,6 +135,7 @@ class RoomOptions {
     this.stopLocalTrackOnUnpublish = true,
     this.e2eeOptions,
     this.enableVisualizer = false,
+    this.fastPublish = true,
   });
 
   RoomOptions copyWith({
@@ -148,6 +149,7 @@ class RoomOptions {
     bool? dynacast,
     bool? stopLocalTrackOnUnpublish,
     E2EEOptions? e2eeOptions,
+    bool? fastPublish,
   }) {
     return RoomOptions(
       defaultCameraCaptureOptions:
@@ -167,6 +169,7 @@ class RoomOptions {
       stopLocalTrackOnUnpublish:
           stopLocalTrackOnUnpublish ?? this.stopLocalTrackOnUnpublish,
       e2eeOptions: e2eeOptions ?? this.e2eeOptions,
+      fastPublish: fastPublish ?? this.fastPublish,
     );
   }
 }

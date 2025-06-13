@@ -23,27 +23,16 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:meta/meta.dart';
 
-import '../e2ee/options.dart';
-import '../events.dart';
-import '../exceptions.dart';
+import 'package:livekit_client/livekit_client.dart';
 import '../extensions.dart';
 import '../internal/events.dart';
 import '../internal/types.dart';
-import '../logger.dart';
-import '../managers/event.dart';
-import '../options.dart';
 import '../proto/livekit_models.pb.dart' as lk_models;
 import '../proto/livekit_rtc.pb.dart' as lk_rtc;
-import '../publication/local.dart';
 import '../support/disposable.dart';
 import '../support/region_url_provider.dart';
 import '../support/websocket.dart';
-import '../track/local/video.dart';
 import '../types/internal.dart';
-import '../types/other.dart';
-import '../types/video_dimensions.dart';
-import '../utils.dart';
-import 'room.dart';
 import 'signal_client.dart';
 import 'transport.dart';
 
@@ -127,6 +116,9 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
   bool get isClosed => _isClosed;
 
+  bool get isPendingReconnect =>
+      reconnectStart != null && reconnectTimeout != null;
+
   final int _reconnectCount = defaultRetryDelaysInMs.length;
 
   bool attemptingReconnect = false;
@@ -136,6 +128,15 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
   lk_models.ServerInfo? _serverInfo;
 
   lk_models.ServerInfo? get serverInfo => _serverInfo;
+
+  final Map<Reliability, bool> _dcBufferStatus = {
+    Reliability.reliable: true,
+    Reliability.lossy: false,
+  };
+
+  List<lk_models.Codec>? _enabledPublishCodecs;
+
+  List<lk_models.Codec>? get enabledPublishCodecs => _enabledPublishCodecs;
 
   void clearReconnectTimeout() {
     if (reconnectTimeout != null) {
@@ -147,6 +148,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
   void clearPendingReconnect() {
     clearReconnectTimeout();
     reconnectAttempts = 0;
+    reconnectStart = null;
   }
 
   Engine({
@@ -191,6 +193,9 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       _regionUrlProvider = regionUrlProvider;
     }
 
+    //reset state
+    _isClosed = false;
+
     try {
       // wait for socket to connect rtc server
       await signalClient.connect(
@@ -201,7 +206,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       );
 
       // wait for join response
-      await _signalListener.waitFor<SignalJoinResponseEvent>(
+      await events.waitFor<EngineJoinResponseEvent>(
         duration: this.connectOptions.timeouts.connection,
         onTimeout: () => throw ConnectException(
             'Timed out waiting for SignalJoinResponseEvent',
@@ -248,56 +253,13 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
   }
 
   @internal
-  Future<lk_models.TrackInfo> addTrack({
-    required String cid,
-    required String name,
-    required lk_models.TrackType kind,
-    required lk_models.TrackSource source,
-    VideoDimensions? dimensions,
-    bool? dtx,
-    Iterable<lk_models.VideoLayer>? videoLayers,
-    Iterable<lk_rtc.SimulcastCodec>? simulcastCodecs,
-    String? sid,
-    String? videoCodec,
-    String? stream,
-    bool? disableRed,
-  }) async {
-    // TODO: Check if cid already published
-
-    lk_models.Encryption_Type encryptionType = lk_models.Encryption_Type.NONE;
-    if (roomOptions.e2eeOptions != null && !isSVCCodec(videoCodec ?? '')) {
-      switch (roomOptions.e2eeOptions!.encryptionType) {
-        case EncryptionType.kNone:
-          encryptionType = lk_models.Encryption_Type.NONE;
-          break;
-        case EncryptionType.kGcm:
-          encryptionType = lk_models.Encryption_Type.GCM;
-          break;
-        case EncryptionType.kCustom:
-          encryptionType = lk_models.Encryption_Type.CUSTOM;
-          break;
-      }
-    }
-
+  Future<lk_models.TrackInfo> addTrack(lk_rtc.AddTrackRequest req) async {
     // send request to add track
-    signalClient.sendAddTrack(
-      cid: cid,
-      name: name,
-      type: kind,
-      source: source,
-      dimensions: dimensions,
-      dtx: dtx,
-      videoLayers: videoLayers,
-      encryptionType: encryptionType,
-      simulcastCodecs: simulcastCodecs,
-      sid: sid,
-      stream: stream,
-      disableRed: disableRed,
-    );
+    signalClient.sendAddTrack(req);
 
     // wait for response, or timeout
     final event = await _signalListener.waitFor<SignalLocalTrackPublishedEvent>(
-      filter: (event) => event.cid == cid,
+      filter: (event) => event.cid == req.cid,
       duration: connectOptions.timeouts.publish,
       onTimeout: () => throw TrackPublishException(),
     );
@@ -317,53 +279,70 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       if (error is NegotiationError) {
         fullReconnectOnNext = true;
       }
-      await handleDisconnect(ClientDisconnectReason.negotiationFailed);
+      await handleReconnect(ClientDisconnectReason.negotiationFailed);
     }
+  }
+
+  bool? isBufferStatusLow(Reliability kind) {
+    final dc = _publisherDataChannel(kind);
+    if (dc != null) {
+      return dc.bufferedAmount! <= dc.bufferedAmountLowThreshold!;
+    }
+    return null;
+  }
+
+  Future<void> waitForBufferStatusLow(Reliability kind) async {
+    final Completer<void> completer = Completer();
+
+    if (isBufferStatusLow(kind) == true) {
+      completer.complete();
+    } else {
+      onClosing() => completer.completeError('Engine disconnected');
+      events.once<EngineClosingEvent>((e) => onClosing());
+
+      while (!_dcBufferStatus[kind]!) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
+      if (completer.isCompleted) {
+        return;
+      }
+      completer.complete();
+    }
+
+    return completer.future;
   }
 
   @internal
   Future<void> sendDataPacket(
-    lk_models.DataPacket packet,
-  ) async {
-    //
-    final reliability = packet.kind.toSDKType();
-
+    lk_models.DataPacket packet, {
+    bool? reliability = true,
+  }) async {
     // construct the data channel message
     final message =
         rtc.RTCDataChannelMessage.fromBinary(packet.writeToBuffer());
 
+    var reliabilityType =
+        reliability == true ? Reliability.reliable : Reliability.lossy;
+
     if (_subscriberPrimary) {
       // make sure publisher transport is connected
 
-      if ((await publisher?.pc.getConnectionState())?.isConnected() != true) {
-        logger.fine('Publisher is not connected...');
-
-        // start negotiation
-        if (await publisher?.pc.getConnectionState() !=
-            rtc.RTCPeerConnectionState.RTCPeerConnectionStateConnecting) {
-          await negotiate();
-        }
-
-        logger.fine('Waiting for publisher to ice-connect...');
-        await events.waitFor<EnginePublisherPeerStateUpdatedEvent>(
-          filter: (event) => event.state.isConnected(),
-          duration: connectOptions.timeouts.peerConnection,
-        );
-      }
+      await _publisherEnsureConnected();
 
       // wait for data channel to open (if not already)
-      if (_publisherDataChannelState(packet.kind.toSDKType()) !=
+      if (_publisherDataChannelState(reliabilityType) !=
           rtc.RTCDataChannelState.RTCDataChannelOpen) {
-        logger.fine('Waiting for data channel ${reliability} to open...');
+        logger.fine('Waiting for data channel ${reliabilityType} to open...');
         await events.waitFor<PublisherDataChannelStateUpdatedEvent>(
-          filter: (event) => event.type == reliability,
+          filter: (event) => event.type == reliabilityType,
           duration: connectOptions.timeouts.connection,
         );
       }
     }
 
     // chose data channel
-    final rtc.RTCDataChannel? channel = _publisherDataChannel(reliability);
+    final rtc.RTCDataChannel? channel = _publisherDataChannel(
+        reliability == true ? Reliability.reliable : Reliability.lossy);
 
     if (channel == null) {
       throw UnexpectedStateException(
@@ -372,6 +351,28 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
     logger.fine('sendDataPacket(label:${channel.label})');
     await channel.send(message);
+
+    _dcBufferStatus[reliabilityType] = await channel.getBufferedAmount() <=
+        channel.bufferedAmountLowThreshold!;
+  }
+
+  Future<void> _publisherEnsureConnected() async {
+    if ((await publisher?.pc.getConnectionState())?.isConnected() != true) {
+      logger.fine('Publisher is not connected...');
+
+      // start negotiation
+      if (await publisher?.pc.getConnectionState() !=
+          rtc.RTCPeerConnectionState.RTCPeerConnectionStateConnecting) {
+        await negotiate();
+      }
+      if (!lkPlatformIsTest()) {
+        logger.fine('Waiting for publisher to ice-connect...');
+        await events.waitFor<EnginePublisherPeerStateUpdatedEvent>(
+          filter: (event) => event.state.isConnected(),
+          duration: connectOptions.timeouts.peerConnection,
+        );
+      }
+    }
   }
 
   Future<RTCConfiguration> _buildRtcConfiguration(
@@ -452,7 +453,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       ));
       logger.fine('subscriber connectionState: $state');
       if (state.isDisconnected() || state.isFailed()) {
-        await handleDisconnect(state.isFailed()
+        await handleReconnect(state.isFailed()
             ? ClientDisconnectReason.peerConnectionFailed
             : ClientDisconnectReason.peerConnectionClosed);
       }
@@ -465,7 +466,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       ));
       logger.fine('publisher connectionState: $state');
       if (state.isDisconnected() || state.isFailed()) {
-        await handleDisconnect(state.isFailed()
+        await handleReconnect(state.isFailed()
             ? ClientDisconnectReason.peerConnectionFailed
             : ClientDisconnectReason.peerConnectionClosed);
       }
@@ -529,7 +530,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     try {
       final lossyInit = rtc.RTCDataChannelInit()
         ..binaryType = 'binary'
-        ..ordered = true
+        ..ordered = false
         ..maxRetransmits = 0;
       _lossyDCPub =
           await publisher?.pc.createDataChannel(_lossyDCLabel, lossyInit);
@@ -541,6 +542,11 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
                 type: Reliability.lossy,
               )));
       // _onDCStateUpdated(Reliability.lossy, state)
+      _lossyDCPub?.bufferedAmountLowThreshold = 65535;
+      _lossyDCPub?.onBufferedAmountLow = (_) {
+        _dcBufferStatus[Reliability.lossy] = (_lossyDCPub!.bufferedAmount! <=
+            _lossyDCPub!.bufferedAmountLowThreshold!);
+      };
     } catch (err) {
       logger.severe('[$objectId] createDataChannel() did throw $err');
     }
@@ -558,6 +564,12 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
                 state: state,
                 type: Reliability.reliable,
               )));
+      _reliableDCPub?.bufferedAmountLowThreshold = 65535;
+      _reliableDCPub?.onBufferedAmountLow = (_) {
+        _dcBufferStatus[Reliability.reliable] =
+            (_reliableDCPub!.bufferedAmount! <=
+                _reliableDCPub!.bufferedAmountLowThreshold!);
+      };
     } catch (err) {
       logger.severe('[$objectId] createDataChannel() did throw $err');
     }
@@ -617,6 +629,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     }
 
     final dp = lk_models.DataPacket.fromBuffer(message.binary);
+
     if (dp.whichValue() == lk_models.DataPacket_Value.speaker) {
       // Speaker packet
       events.emit(EngineActiveSpeakersUpdateEvent(
@@ -627,25 +640,70 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       events.emit(EngineDataPacketReceivedEvent(
         packet: dp.user,
         kind: dp.kind,
+        identity: dp.participantIdentity,
       ));
     } else if (dp.whichValue() == lk_models.DataPacket_Value.transcription) {
       // Transcription packet
       events.emit(EngineTranscriptionReceivedEvent(
         transcription: dp.transcription,
+        identity: dp.participantIdentity,
       ));
     } else if (dp.whichValue() == lk_models.DataPacket_Value.sipDtmf) {
       // SIP DTMF packet
       events.emit(EngineSipDtmfReceivedEvent(
         dtmf: dp.sipDtmf,
+        identity: dp.participantIdentity,
       ));
+    } else if (dp.whichValue() == lk_models.DataPacket_Value.rpcRequest) {
+      // RPC Request
+      events.emit(EngineRPCRequestReceivedEvent(
+        request: dp.rpcRequest,
+        identity: dp.participantIdentity,
+      ));
+    } else if (dp.whichValue() == lk_models.DataPacket_Value.rpcResponse) {
+      // RPC Response
+      events.emit(EngineRPCResponseReceivedEvent(
+        response: dp.rpcResponse,
+        identity: dp.participantIdentity,
+      ));
+    } else if (dp.whichValue() == lk_models.DataPacket_Value.rpcAck) {
+      // RPC Ack
+      events.emit(EngineRPCAckReceivedEvent(
+        ack: dp.rpcAck,
+        identity: dp.participantIdentity,
+      ));
+    } else if (dp.whichValue() == lk_models.DataPacket_Value.streamHeader) {
+      // Data Stream Header
+      events.emit(
+        EngineDataStreamHeaderEvent(
+          header: dp.streamHeader,
+          identity: dp.participantIdentity,
+        ),
+      );
+    } else if (dp.whichValue() == lk_models.DataPacket_Value.streamChunk) {
+      // Data Stream Chunk
+      events.emit(
+        EngineDataStreamChunkEvent(
+          chunk: dp.streamChunk,
+          identity: dp.participantIdentity,
+        ),
+      );
+    } else if (dp.whichValue() == lk_models.DataPacket_Value.streamTrailer) {
+      // Data Stream trailer
+      events.emit(
+        EngineDataStreamTrailerEvent(
+          trailer: dp.streamTrailer,
+          identity: dp.participantIdentity,
+        ),
+      );
     } else {
       logger.warning('Unknown data packet type: ${dp.whichValue()}');
     }
   }
 
-  Future<void> handleDisconnect(ClientDisconnectReason reason) async {
+  Future<void> handleReconnect(ClientDisconnectReason reason) async {
     if (_isClosed) {
-      logger.fine('handleDisconnect: engine is closed, skip');
+      logger.fine('handleReconnect: engine is closed, skip');
       return;
     }
 
@@ -743,7 +801,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       }
 
       if (recoverable) {
-        unawaited(handleDisconnect(ClientDisconnectReason.reconnectRetry));
+        unawaited(handleReconnect(ClientDisconnectReason.reconnectRetry));
       } else {
         logger.fine('attemptReconnect: disconnecting...');
         events.emit(EngineDisconnectedEvent(
@@ -846,13 +904,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       );
 
       if (_hasPublished) {
-        await negotiate();
-        logger
-            .fine('restartConnection: Waiting for publisher to ice-connect...');
-        await events.waitFor<EnginePublisherPeerStateUpdatedEvent>(
-          filter: (event) => event.state.isConnected(),
-          duration: connectOptions.timeouts.peerConnection,
-        );
+        await _publisherEnsureConnected();
       }
       fullReconnectOnNext = false;
       _regionUrlProvider?.resetAttempts();
@@ -921,10 +973,16 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
         await _createPeerConnections(rtcConfiguration);
       }
 
-      if (!_subscriberPrimary) {
-        // for subscriberPrimary, we negotiate when necessary (lazy)
+      if (!_subscriberPrimary || event.response.fastPublish) {
+        _enabledPublishCodecs = event.response.enabledPublishCodecs;
+
+        /// for subscriberPrimary, we negotiate when necessary (lazy)
+        /// and if `response.fastPublish == true`, we need to negotiate
+        /// immediately
         await negotiate();
       }
+
+      events.emit(EngineJoinResponseEvent(response: event.response));
     })
     ..on<SignalReconnectResponseEvent>((event) async {
       var iceServersFromServer =
@@ -970,8 +1028,8 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     ..on<SignalDisconnectedEvent>((event) async {
       logger.fine('Signal disconnected ${event.reason}');
       if (event.reason == DisconnectReason.disconnected && !_isClosed) {
-        await handleDisconnect(ClientDisconnectReason.signal);
-      } else {
+        await handleReconnect(ClientDisconnectReason.signal);
+      } else if (event.reason == DisconnectReason.signalingConnectionFailure) {
         events.emit(EngineDisconnectedEvent(
           reason: event.reason,
         ));
@@ -1050,11 +1108,11 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
         case lk_rtc.LeaveRequest_Action.RECONNECT:
           fullReconnectOnNext = true;
           // reconnect immediately instead of waiting for next attempt
-          await handleDisconnect(ClientDisconnectReason.leaveReconnect);
+          await handleReconnect(ClientDisconnectReason.leaveReconnect);
           break;
         case lk_rtc.LeaveRequest_Action.RESUME:
           // reconnect immediately instead of waiting for next attempt
-          await handleDisconnect(ClientDisconnectReason.leaveReconnect);
+          await handleReconnect(ClientDisconnectReason.leaveReconnect);
         default:
           break;
       }
@@ -1062,9 +1120,19 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
   Future<void> disconnect() async {
     _isClosed = true;
+    events.emit(EngineClosingEvent());
     if (connectionState == ConnectionState.connected) {
       await signalClient.sendLeave();
     } else {
+      if (isPendingReconnect) {
+        logger.fine('disconnect: Cancel the reconnection processing!');
+        await signalClient.cleanUp();
+        await _signalListener.cancelAll();
+        clearPendingReconnect();
+        events.emit(EngineDisconnectedEvent(
+          reason: DisconnectReason.clientInitiated,
+        ));
+      }
       await cleanUp();
     }
   }
@@ -1087,10 +1155,40 @@ extension EnginePrivateMethods on Engine {
 
 extension EngineInternalMethods on Engine {
   @internal
+  Future<rtc.RTCRtpTransceiver> createTransceiverRTCRtpSender(
+    LocalTrack track,
+    PublishOptions opts,
+    List<rtc.RTCRtpEncoding>? encodings,
+  ) async {
+    if (publisher == null) {
+      throw UnexpectedConnectionState('publisher is closed');
+    }
+
+    if (track.mediaStreamTrack.kind == 'video' && opts is VideoPublishOptions) {
+      track.codec = opts.videoCodec;
+    }
+    var transceiverInit = rtc.RTCRtpTransceiverInit(
+      direction: rtc.TransceiverDirection.SendOnly,
+    );
+    if (encodings != null) {
+      transceiverInit.sendEncodings = encodings;
+    }
+    final transceiver = await publisher!.pc.addTransceiver(
+      track: track.mediaStreamTrack,
+      kind: track is LocalVideoTrack
+          ? rtc.RTCRtpMediaType.RTCRtpMediaTypeVideo
+          : rtc.RTCRtpMediaType.RTCRtpMediaTypeAudio,
+      init: transceiverInit,
+    );
+    return transceiver;
+  }
+
+  @internal
   List<lk_rtc.DataChannelInfo> dataChannelInfo() => [
         _reliableDCPub,
         _lossyDCPub
       ].nonNulls.where((e) => e.id != -1).map((e) => e.toLKInfoType()).toList();
+
   @internal
   Future<rtc.RTCRtpSender> createSimulcastTransceiverSender(
     LocalVideoTrack track,
@@ -1139,7 +1237,15 @@ extension EngineInternalMethods on Engine {
 
       var matchesVideoCodec = codec == 'video/$videoCodec';
       if (!matchesVideoCodec) {
-        unmatched.add(c);
+        if (lkPlatformIs(PlatformType.android) && codec == 'video/vp9') {
+          if (c.sdpFmtpLine != null &&
+              (c.sdpFmtpLine!.contains('profile-id=0') ||
+                  c.sdpFmtpLine!.contains('profile-id=1'))) {
+            unmatched.add(c);
+          }
+        } else {
+          unmatched.add(c);
+        }
         continue;
       }
       // for h264 codecs that have sdpFmtpLine available, use only if the
@@ -1153,7 +1259,15 @@ extension EngineInternalMethods on Engine {
         }
         continue;
       }
-      matched.add(c);
+      if (lkPlatformIs(PlatformType.android) && codec == 'video/vp9') {
+        if (c.sdpFmtpLine != null &&
+            (c.sdpFmtpLine!.contains('profile-id=0') ||
+                c.sdpFmtpLine!.contains('profile-id=1'))) {
+          matched.add(c);
+        }
+      } else {
+        matched.add(c);
+      }
     }
     matched.addAll([...partialMatched, ...unmatched]);
     try {

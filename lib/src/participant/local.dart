@@ -14,20 +14,31 @@
 
 // ignore_for_file: deprecated_member_use_from_same_package
 
+import 'dart:async';
+import 'dart:io';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
+import 'package:async/async.dart';
+import 'package:fixnum/fixnum.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:meta/meta.dart';
+import 'package:mime_type/mime_type.dart';
+import 'package:path/path.dart';
+import 'package:uuid/uuid.dart';
 
 import '../core/engine.dart';
 import '../core/room.dart';
 import '../core/signal_client.dart';
 import '../core/transport.dart';
+import '../data_stream/stream_writer.dart';
 import '../events.dart';
 import '../exceptions.dart';
 import '../extensions.dart';
 import '../internal/events.dart';
 import '../logger.dart';
+import '../managers/broadcast_manager.dart';
 import '../options.dart';
 import '../proto/livekit_models.pb.dart' as lk_models;
 import '../proto/livekit_rtc.pb.dart' as lk_rtc;
@@ -37,8 +48,10 @@ import '../track/local/audio.dart';
 import '../track/local/local.dart';
 import '../track/local/video.dart';
 import '../track/options.dart';
+import '../types/data_stream.dart';
 import '../types/other.dart';
 import '../types/participant_permissions.dart';
+import '../types/rpc.dart';
 import '../types/video_dimensions.dart';
 import '../utils.dart';
 import 'participant.dart';
@@ -46,6 +59,13 @@ import 'participant.dart';
 /// Represents the current participant in the room. Instance of [LocalParticipant] is automatically
 /// created after successfully connecting to a [Room] and will be accessible from [Room.localParticipant].
 class LocalParticipant extends Participant<LocalTrackPublication> {
+  // RPC Pending Acks
+  final Map<String, Function(String participantIdentity)> _pendingAcks = {};
+
+  // RPC Pending Responses
+  final Map<String, Function(String? payload, RpcError? error)>
+      _pendingResponses = {};
+
   @internal
   LocalParticipant({
     required Room room,
@@ -58,9 +78,21 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
         ) {
     updateFromInfo(info);
 
+    if (lkPlatformIs(PlatformType.iOS)) {
+      BroadcastManager().addListener(_broadcastStateChanged);
+    }
+
     onDispose(() async {
+      BroadcastManager().removeListener(_broadcastStateChanged);
       await unpublishAllTracks();
     });
+  }
+
+  /// Handle broadcast state change (iOS only)
+  void _broadcastStateChanged() {
+    final isEnabled = BroadcastManager().isBroadcasting &&
+        BroadcastManager().shouldPublishTrack;
+    setScreenShareEnabled(isEnabled);
   }
 
   /// Publish an [AudioTrack] to the [Room].
@@ -78,33 +110,58 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
     publishOptions ??=
         track.lastPublishOptions ?? room.roomOptions.defaultAudioPublishOptions;
 
-    final trackInfo = await room.engine.addTrack(
+    List<rtc.RTCRtpEncoding> encodings = [
+      rtc.RTCRtpEncoding(
+        maxBitrate: publishOptions.audioBitrate,
+      )
+    ];
+
+    var req = lk_rtc.AddTrackRequest(
       cid: track.getCid(),
       name: publishOptions.name ?? AudioPublishOptions.defaultMicrophoneName,
-      stream: buildStreamId(publishOptions, track.source),
-      kind: track.kind.toPBType(),
+      type: track.kind.toPBType(),
       source: track.source.toPBType(),
-      dtx: publishOptions.dtx,
+      stream: buildStreamId(publishOptions, track.source),
+      disableDtx: !publishOptions.dtx,
       disableRed: room.e2eeManager != null ? true : publishOptions.red ?? true,
+      encryption: room.roomOptions.lkEncryptionType,
     );
+
+    Future<lk_models.TrackInfo> negotiate() async {
+      track.transceiver = await room.engine
+          .createTransceiverRTCRtpSender(track, publishOptions!, encodings);
+      await room.engine.negotiate();
+      return lk_models.TrackInfo();
+    }
+
+    late lk_models.TrackInfo trackInfo;
+    if (room.engine.enabledPublishCodecs?.isNotEmpty ?? false) {
+      final rets = await Future.wait<lk_models.TrackInfo>(
+          [room.engine.addTrack(req), negotiate()]);
+      trackInfo = rets[0];
+    } else {
+      trackInfo = await room.engine.addTrack(req);
+
+      final transceiverInit = rtc.RTCRtpTransceiverInit(
+        direction: rtc.TransceiverDirection.SendOnly,
+        sendEncodings: [
+          if (publishOptions.audioBitrate > 0)
+            rtc.RTCRtpEncoding(maxBitrate: publishOptions.audioBitrate),
+        ],
+      );
+      // addTransceiver cannot pass in a kind parameter due to a bug in flutter-webrtc (web)
+      track.transceiver = await room.engine.publisher?.pc.addTransceiver(
+        track: track.mediaStreamTrack,
+        kind: rtc.RTCRtpMediaType.RTCRtpMediaTypeAudio,
+        init: transceiverInit,
+      );
+
+      await room.engine.negotiate();
+    }
+
+    logger.fine('publishAudioTrack engine.addTrack response: ${trackInfo}');
 
     track.lastPublishOptions = publishOptions;
-
-    final transceiverInit = rtc.RTCRtpTransceiverInit(
-      direction: rtc.TransceiverDirection.SendOnly,
-      sendEncodings: [
-        if (publishOptions.audioBitrate > 0)
-          rtc.RTCRtpEncoding(maxBitrate: publishOptions.audioBitrate),
-      ],
-    );
-    // addTransceiver cannot pass in a kind parameter due to a bug in flutter-webrtc (web)
-    track.transceiver = await room.engine.publisher?.pc.addTransceiver(
-      track: track.mediaStreamTrack,
-      kind: rtc.RTCRtpMediaType.RTCRtpMediaTypeAudio,
-      init: transceiverInit,
-    );
-
-    await room.engine.negotiate();
 
     final pub = LocalTrackPublication<LocalAudioTrack>(
       participant: this,
@@ -157,6 +214,23 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       );
     }
 
+    if (room.engine.enabledPublishCodecs?.isNotEmpty ?? false) {
+      // fallback to a supported codec if it is not supported
+      if (!room.engine.enabledPublishCodecs!
+          .where((c) => c.mime.startsWith('video/'))
+          .where(
+              (c) => videoCodecs.any((v) => c.mime.toLowerCase().endsWith(v)))
+          .any((c) =>
+              publishOptions?.videoCodec ==
+              mimeTypeToVideoCodecString(c.mime))) {
+        publishOptions = publishOptions.copyWith(
+          videoCodec: mimeTypeToVideoCodecString(
+                  room.engine.enabledPublishCodecs![0].mime)
+              .toLowerCase(),
+        );
+      }
+    }
+
     // handle SVC publishing
     final isSVC = isSVCCodec(publishOptions.videoCodec);
     if (isSVC) {
@@ -178,7 +252,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       }
     }
 
-    // use constraints passed to getUserMedia by default
+    // use finalraints passed to getUserMedia by default
     VideoDimensions dimensions = track.currentOptions.params.dimensions;
 
     if (kIsWeb || lkPlatformIsMobile()) {
@@ -230,98 +304,162 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       isSVC,
     );
 
+    if (room.engine.isClosed) {
+      throw UnexpectedConnectionState(
+          'cannot publish track when not connected');
+    }
+
     logger.fine('Video layers: ${layers.map((e) => e)}');
 
-    final trackInfo = await room.engine.addTrack(
+    Future<lk_models.TrackInfo> negotiate() async {
+      track.transceiver = await room.engine
+          .createTransceiverRTCRtpSender(track, publishOptions!, encodings);
+
+      if (lkBrowser() != BrowserType.firefox) {
+        await room.engine.setPreferredCodec(
+          track.transceiver!,
+          'video',
+          publishOptions.videoCodec,
+        );
+        track.codec = publishOptions.videoCodec;
+      }
+
+      if ([TrackSource.camera, TrackSource.screenShareVideo]
+          .contains(track.source)) {
+        var degradationPreference = publishOptions.degradationPreference ??
+            getDefaultDegradationPreference(
+              track,
+            );
+        track.setDegradationPreference(degradationPreference);
+      }
+
+      if (kIsWeb &&
+          lkBrowser() == BrowserType.firefox &&
+          track.kind == TrackType.AUDIO) {
+        //TOOD:
+      } else if (isSVCCodec(publishOptions.videoCodec) &&
+          encodings?.first.maxBitrate != null) {
+        room.engine.publisher?.setTrackBitrateInfo(TrackBitrateInfo(
+            cid: track.getCid(),
+            transceiver: track.transceiver,
+            codec: publishOptions.videoCodec,
+            maxbr: encodings![0].maxBitrate! ~/ 1000));
+      }
+
+      await room.engine.negotiate();
+
+      return lk_models.TrackInfo();
+    }
+
+    final req = lk_rtc.AddTrackRequest(
       cid: track.getCid(),
       name: publishOptions.name ??
           (track.source == TrackSource.screenShareVideo
               ? VideoPublishOptions.defaultScreenShareName
               : VideoPublishOptions.defaultCameraName),
-      stream: buildStreamId(publishOptions, track.source),
-      kind: track.kind.toPBType(),
+      type: track.kind.toPBType(),
       source: track.source.toPBType(),
-      dimensions: dimensions,
-      videoLayers: layers,
+      encryption: room.roomOptions.lkEncryptionType,
       simulcastCodecs: simulcastCodecs,
-      videoCodec: publishOptions.videoCodec,
+      muted: false,
+      stream: buildStreamId(publishOptions, track.source),
     );
 
-    logger.fine('publishVideoTrack addTrack response: ${trackInfo}');
+    // video specific
+    if (dimensions.width > 0 && dimensions.height > 0) {
+      req.width = dimensions.width;
+      req.height = dimensions.height;
+    }
+
+    if (layers.isNotEmpty) {
+      req.layers
+        ..clear()
+        ..addAll(layers);
+    }
+    late lk_models.TrackInfo trackInfo;
+    if (room.engine.enabledPublishCodecs?.isNotEmpty ?? false) {
+      final rets = await Future.wait<lk_models.TrackInfo>(
+          [room.engine.addTrack(req), negotiate()]);
+      trackInfo = rets[0];
+    } else {
+      trackInfo = await room.engine.addTrack(req);
+
+      String? primaryCodecMime;
+      for (var codec in trackInfo.codecs) {
+        primaryCodecMime ??= codec.mimeType;
+      }
+
+      if (primaryCodecMime != null) {
+        final updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+        if (updatedCodec != publishOptions.videoCodec) {
+          logger.fine(
+            'requested a different codec than specified by serverRequested: ${publishOptions.videoCodec}, server: ${updatedCodec}',
+          );
+          publishOptions = publishOptions.copyWith(
+            videoCodec: updatedCodec,
+          );
+          // recompute encodings since bitrates/etc could have changed
+          encodings = Utils.computeVideoEncodings(
+            isScreenShare: track.source == TrackSource.screenShareVideo,
+            dimensions: dimensions,
+            options: publishOptions,
+            codec: publishOptions.videoCodec,
+          );
+        }
+      }
+
+      final transceiverInit = rtc.RTCRtpTransceiverInit(
+        direction: rtc.TransceiverDirection.SendOnly,
+        sendEncodings: encodings,
+      );
+
+      logger.fine('publishVideoTrack publisher: ${room.engine.publisher}');
+
+      track.transceiver = await room.engine.publisher?.pc.addTransceiver(
+        track: track.mediaStreamTrack,
+        kind: rtc.RTCRtpMediaType.RTCRtpMediaTypeVideo,
+        init: transceiverInit,
+      );
+
+      if (lkBrowser() != BrowserType.firefox) {
+        await room.engine.setPreferredCodec(
+          track.transceiver!,
+          'video',
+          publishOptions.videoCodec,
+        );
+        track.codec = publishOptions.videoCodec;
+      }
+
+      if ([TrackSource.camera, TrackSource.screenShareVideo]
+          .contains(track.source)) {
+        var degradationPreference = publishOptions.degradationPreference ??
+            getDefaultDegradationPreference(
+              track,
+            );
+        track.setDegradationPreference(degradationPreference);
+      }
+
+      if (kIsWeb &&
+          lkBrowser() == BrowserType.firefox &&
+          track.kind == TrackType.AUDIO) {
+        //TOOD:
+      } else if (isSVCCodec(publishOptions.videoCodec) &&
+          encodings?.first.maxBitrate != null) {
+        room.engine.publisher?.setTrackBitrateInfo(TrackBitrateInfo(
+            cid: track.getCid(),
+            transceiver: track.transceiver,
+            codec: publishOptions.videoCodec,
+            maxbr: encodings![0].maxBitrate! ~/ 1000));
+      }
+
+      await room.engine.negotiate();
+    }
+
+    logger.fine('publishVideoTrack engine.addTrack response: ${trackInfo}');
 
     track.lastPublishOptions = publishOptions;
 
     await track.start();
-
-    String? primaryCodecMime;
-    for (var codec in trackInfo.codecs) {
-      primaryCodecMime ??= codec.mimeType;
-    }
-
-    if (primaryCodecMime != null) {
-      final updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-      if (updatedCodec != publishOptions.videoCodec) {
-        logger.fine(
-          'requested a different codec than specified by serverRequested: ${publishOptions.videoCodec}, server: ${updatedCodec}',
-        );
-        publishOptions = publishOptions.copyWith(
-          videoCodec: updatedCodec,
-        );
-        // recompute encodings since bitrates/etc could have changed
-        encodings = Utils.computeVideoEncodings(
-          isScreenShare: track.source == TrackSource.screenShareVideo,
-          dimensions: dimensions,
-          options: publishOptions,
-          codec: publishOptions.videoCodec,
-        );
-      }
-    }
-
-    final transceiverInit = rtc.RTCRtpTransceiverInit(
-      direction: rtc.TransceiverDirection.SendOnly,
-      sendEncodings: encodings,
-    );
-
-    logger.fine('publishVideoTrack publisher: ${room.engine.publisher}');
-
-    track.transceiver = await room.engine.publisher?.pc.addTransceiver(
-      track: track.mediaStreamTrack,
-      kind: rtc.RTCRtpMediaType.RTCRtpMediaTypeVideo,
-      init: transceiverInit,
-    );
-
-    if (lkBrowser() != BrowserType.firefox) {
-      await room.engine.setPreferredCodec(
-        track.transceiver!,
-        'video',
-        publishOptions.videoCodec,
-      );
-      track.codec = publishOptions.videoCodec;
-    }
-
-    if ([TrackSource.camera, TrackSource.screenShareVideo]
-        .contains(track.source)) {
-      var degradationPreference = publishOptions.degradationPreference ??
-          getDefaultDegradationPreference(
-            track,
-          );
-      track.setDegradationPreference(degradationPreference);
-    }
-
-    if (kIsWeb &&
-        lkBrowser() == BrowserType.firefox &&
-        track.kind == TrackType.AUDIO) {
-      //TOOD:
-    } else if (isSVCCodec(publishOptions.videoCodec) &&
-        encodings?.first.maxBitrate != null) {
-      room.engine.publisher?.setTrackBitrateInfo(TrackBitrateInfo(
-          cid: track.getCid(),
-          transceiver: track.transceiver,
-          codec: publishOptions.videoCodec,
-          maxbr: encodings![0].maxBitrate! ~/ 1000));
-    }
-
-    await room.engine.negotiate();
 
     final pub = LocalTrackPublication<LocalVideoTrack>(
       participant: this,
@@ -462,7 +600,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       ),
     );
 
-    await room.engine.sendDataPacket(packet);
+    await room.engine.sendDataPacket(packet, reliability: reliable);
   }
 
   /// Sets and updates the metadata of the local participant.
@@ -603,7 +741,6 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
           await publication.mute(stopOnMute: stopOnMute);
         }
       }
-      await room.applyAudioSpeakerSettings();
       return publication;
     } else if (enabled) {
       if (source == TrackSource.camera) {
@@ -614,12 +751,18 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       } else if (source == TrackSource.microphone) {
         AudioCaptureOptions captureOptions =
             audioCaptureOptions ?? room.roomOptions.defaultAudioCaptureOptions;
-        final track = await LocalAudioTrack.create(
-            captureOptions, room.roomOptions.enableVisualizer);
+        final track = await LocalAudioTrack.create(captureOptions);
         return await publishAudioTrack(track);
       } else if (source == TrackSource.screenShareVideo) {
         ScreenShareCaptureOptions captureOptions = screenShareCaptureOptions ??
             room.roomOptions.defaultScreenShareCaptureOptions;
+
+        if (lkPlatformIs(PlatformType.iOS) &&
+            !BroadcastManager().isBroadcasting) {
+          // Wait until broadcasting to publish track
+          BroadcastManager().requestActivation();
+          return null;
+        }
 
         /// When capturing chrome table audio, we can't capture audio/video
         /// track separately, it has to be returned once in getDisplayMedia,
@@ -758,29 +901,468 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
 
     final cid = simulcastTrack.sender!.senderId;
 
-    final trackInfo = await room.engine.addTrack(
-        cid: cid,
-        name: options.name ??
-            (track.source == TrackSource.screenShareVideo
-                ? VideoPublishOptions.defaultScreenShareName
-                : VideoPublishOptions.defaultCameraName),
-        stream: buildStreamId(options, track.source),
-        kind: track.kind.toPBType(),
-        source: track.source.toPBType(),
-        dimensions: dimensions,
-        videoLayers: layers,
-        sid: publication.sid,
-        simulcastCodecs: <lk_rtc.SimulcastCodec>[
-          lk_rtc.SimulcastCodec(
-            codec: backupCodec.toLowerCase(),
-            cid: cid,
-          ),
-        ],
-        videoCodec: backupCodec);
+    var req = lk_rtc.AddTrackRequest(
+      cid: cid,
+      name: options.name ??
+          (track.source == TrackSource.screenShareVideo
+              ? VideoPublishOptions.defaultScreenShareName
+              : VideoPublishOptions.defaultCameraName),
+      type: track.kind.toPBType(),
+      source: track.source.toPBType(),
+      layers: layers,
+      sid: publication.sid,
+      simulcastCodecs: <lk_rtc.SimulcastCodec>[
+        lk_rtc.SimulcastCodec(
+          codec: backupCodec.toLowerCase(),
+          cid: cid,
+        ),
+      ],
+    );
+
+    // video specific
+    if (dimensions.width > 0 && dimensions.height > 0) {
+      req.width = dimensions.width;
+      req.height = dimensions.height;
+    }
+
+    final trackInfo = await room.engine.addTrack(req);
 
     await room.engine.negotiate();
 
     logger.info(
         'published backupCodec $backupCodec for track ${track.sid}, track info ${trackInfo}');
+  }
+}
+
+extension RPCMethods on LocalParticipant {
+  @internal
+  Future<void> publishRpcRequest({
+    required String destinationIdentity,
+    required String requestId,
+    required String method,
+    required String payload,
+    required Duration responseTimeout,
+    int? version,
+  }) async {
+    if (payload.length > kRpcMaxPayloadBytes) {
+      throw RpcError.builtIn(RpcError.requestPayloadTooLarge);
+    }
+
+    if ((room.engine.serverInfo?.version.isNotEmpty ?? false) &&
+        compareVersions(room.engine.serverInfo!.version, '1.8.0') < 0) {
+      throw RpcError.builtIn(RpcError.unsupportedServer);
+    }
+
+    final packet = lk_models.DataPacket(
+      rpcRequest: lk_models.RpcRequest(
+        id: requestId,
+        method: method,
+        payload: payload,
+        responseTimeoutMs: responseTimeout.inMilliseconds,
+        version: version ?? kRpcVesion,
+      ),
+      participantIdentity: identity,
+      destinationIdentities: [destinationIdentity],
+    );
+
+    await room.engine.sendDataPacket(packet, reliability: true);
+  }
+
+  @internal
+  Future<void> publishRpcResponse({
+    required String destinationIdentity,
+    required String requestId,
+    String? payload,
+    lk_models.RpcError? error,
+  }) async {
+    final packet = lk_models.DataPacket(
+      rpcResponse: lk_models.RpcResponse(
+        requestId: requestId,
+        payload: error == null ? payload : null,
+        error: error,
+      ),
+      destinationIdentities: [destinationIdentity],
+      participantIdentity: identity,
+    );
+
+    await room.engine.sendDataPacket(packet, reliability: true);
+  }
+
+  @internal
+  Future<void> publishRpcAck({
+    required String destinationIdentity,
+    required String requestId,
+  }) async {
+    final packet = lk_models.DataPacket(
+      rpcAck: lk_models.RpcAck(
+        requestId: requestId,
+      ),
+      destinationIdentities: [destinationIdentity],
+      participantIdentity: identity,
+    );
+
+    await room.engine.sendDataPacket(packet, reliability: true);
+  }
+
+  void handleIncomingRpcAck(String requestId) {
+    final handler = _pendingAcks[requestId];
+    if (handler != null) {
+      handler(requestId);
+      _pendingAcks.remove(requestId);
+    } else {
+      logger.warning('Ack received for unexpected RPC request $requestId');
+    }
+  }
+
+  void handleIncomingRpcResponse(
+    String requestId,
+    String? payload,
+    RpcError? error,
+  ) {
+    final handler = _pendingResponses[requestId];
+    if (handler != null) {
+      handler(payload, error);
+      _pendingResponses.remove(requestId);
+    } else {
+      logger.warning('Response received for unexpected RPC request $requestId');
+    }
+  }
+
+  Future<void> handleIncomingRpcRequest(
+    String callerIdentity,
+    String requestId,
+    String method,
+    String payload,
+    num responseTimeoutMs,
+    num version,
+  ) async {
+    await publishRpcAck(
+      destinationIdentity: callerIdentity,
+      requestId: requestId,
+    );
+
+    RpcError? responseError;
+    String? responsePayload;
+
+    try {
+      if (version != kRpcVesion) {
+        await publishRpcResponse(
+          destinationIdentity: callerIdentity,
+          requestId: requestId,
+          error: RpcError.builtIn(RpcError.unsupportedVersion).toProto(),
+        );
+        return;
+      }
+
+      var handler = room.rpcHandlers[method];
+      if (handler == null) {
+        await publishRpcResponse(
+          destinationIdentity: callerIdentity,
+          requestId: requestId,
+          error: RpcError.builtIn(RpcError.unsupportedMethod).toProto(),
+        );
+        return;
+      }
+
+      final response = await handler(RpcInvocationData(
+          requestId: requestId,
+          callerIdentity: callerIdentity,
+          payload: payload,
+          responseTimeoutMs: responseTimeoutMs.toInt()));
+
+      if (response.length > kRpcMaxPayloadBytes) {
+        responseError = RpcError.builtIn(RpcError.responsePayloadTooLarge);
+        logger.warning('RPC Response payload too large for $method');
+      } else {
+        responsePayload = response;
+      }
+    } catch (error) {
+      if (error is RpcError) {
+        responseError = error;
+      } else {
+        logger.warning(
+            'Uncaught error returned by RPC handler for ${method}. Returning RpcError.applicationError instead. $error');
+        responseError = RpcError(
+            code: RpcError.applicationError, message: error.toString());
+      }
+    }
+
+    await publishRpcResponse(
+      destinationIdentity: callerIdentity,
+      requestId: requestId,
+      payload: responsePayload,
+      error: responseError?.toProto(),
+    );
+
+    logger.fine('RPC request ${method} handled');
+  }
+
+  /// Initiate an RPC call to a remote participant.
+  /// @param [params] - RPC call parameters.
+  /// @returns A promise that resolves with the response payload or rejects with an error.
+  /// @throws Error on failure. Details in `message`.
+  Future<String> performRpc(PerformRpcParams params) async {
+    final requestId = Uuid().v4();
+    final completer = Completer<String>();
+
+    final maxRoundTripLatency = Duration(seconds: 2);
+
+    try {
+      await publishRpcRequest(
+        destinationIdentity: params.destinationIdentity,
+        requestId: requestId,
+        method: params.method,
+        payload: params.payload,
+        responseTimeout: Duration(
+            milliseconds: params.responseTimeoutMs.inMilliseconds -
+                maxRoundTripLatency.inMilliseconds),
+        version: kRpcVesion,
+      );
+
+      final ackTimer = Timer(maxRoundTripLatency, () {
+        completer.completeError(RpcError.builtIn(RpcError.connectionTimeout));
+        _pendingResponses.remove(requestId);
+      });
+
+      _pendingAcks[requestId] = (id) {
+        ackTimer.cancel();
+      };
+
+      final responseTimer = Timer(params.responseTimeoutMs, () {
+        completer.completeError(RpcError.builtIn(RpcError.responseTimeout));
+        _pendingResponses.remove(requestId);
+      });
+
+      _pendingResponses[requestId] = (String? response, RpcError? error) {
+        responseTimer.cancel();
+        if (error != null) {
+          completer.completeError(error);
+        } else {
+          completer.complete(response!);
+        }
+        ackTimer.cancel();
+        _pendingAcks.remove(requestId);
+      };
+    } catch (e) {
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
+    }
+
+    return completer.future;
+  }
+}
+
+extension DataStreamParticipantMethods on LocalParticipant {
+  Future<TextStreamInfo> sendText(String text,
+      {SendTextOptions? options}) async {
+    final streamId = Uuid().v4();
+    final textInBytes = text.codeUnits;
+    final totalTextLength = textInBytes.length;
+
+    var fileIds = options?.attachments.map((f) => Uuid().v4()).toList();
+    var len = 0;
+    if (fileIds != null && fileIds.isNotEmpty) {
+      len = fileIds.length + 1;
+    } else {
+      len = 1;
+    }
+    final progresses = List<num>.filled(len, 0);
+
+    handleProgress(num progress, int idx) {
+      progresses[idx] = progress;
+      final totalProgress = progresses.reduce((acc, val) => acc + val);
+      options?.onProgress
+          ?.call(totalProgress.toDouble() / (fileIds?.length ?? 1));
+    }
+
+    final writer = await streamText(StreamTextOptions(
+      streamId: streamId,
+      totalSize: totalTextLength,
+      destinationIdentities: options?.destinationIdentities ?? [],
+      topic: options?.topic,
+      attachedStreamIds: fileIds ?? [],
+    ));
+
+    await writer.write(text);
+    // set text part of progress to 1
+    handleProgress(1, 0);
+
+    await writer.close();
+
+    if (options?.attachments != null) {
+      var idx = 0;
+      await Future.wait<void>(
+        options?.attachments.map(
+              (file) {
+                var curIdx = idx++;
+                return _sendFile(
+                  fileIds![curIdx],
+                  file,
+                  SendFileOptions(
+                      topic: options.topic,
+                      mimeType: mime(basename(file.path)),
+                      onProgress: (progress) {
+                        handleProgress(progress, curIdx + 1);
+                      }),
+                );
+              },
+            ).toList() ??
+            [],
+      );
+    }
+    return writer.info;
+  }
+
+  Future<TextStreamWriter> streamText(StreamTextOptions? options) async {
+    final streamId = options?.streamId ?? Uuid().v4();
+
+    final info = TextStreamInfo(
+      id: streamId,
+      mimeType: 'text/plain',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      topic: options?.topic ?? '',
+      size: options?.totalSize ?? 0,
+    );
+
+    final header = lk_models.DataStream_Header(
+      streamId: streamId,
+      mimeType: info.mimeType,
+      topic: info.topic,
+      timestamp: Int64(info.timestamp),
+      totalLength: Int64(options?.totalSize ?? 0),
+      textHeader: lk_models.DataStream_TextHeader(
+        version: options?.version,
+        attachedStreamIds: options?.attachedStreamIds,
+        replyToStreamId: options?.replyToStreamId,
+        operationType: options?.type == 'update'
+            ? lk_models.DataStream_OperationType.UPDATE
+            : lk_models.DataStream_OperationType.CREATE,
+      ),
+    );
+    final destinationIdentities = options?.destinationIdentities;
+    final packet = lk_models.DataPacket(
+      destinationIdentities: destinationIdentities,
+      streamHeader: header,
+    );
+    await room.engine.sendDataPacket(packet, reliability: true);
+
+    final writableStream = WritableStream<String>(
+        destinationIdentities: destinationIdentities!,
+        engine: room.engine,
+        streamId: streamId);
+
+    onEngineClose() async {
+      await writableStream.close();
+    }
+
+    var cancelFun =
+        room.engine.events.once<EngineClosingEvent>((_) => onEngineClose);
+
+    final writer = TextStreamWriter(
+      writableStream: writableStream,
+      info: info,
+      onClose: () {
+        cancelFun?.call();
+      },
+    );
+
+    return writer;
+  }
+
+  Future<Map<String, String>> sendFile(
+    File file, {
+    required SendFileOptions options,
+  }) async {
+    final streamId = Uuid().v4();
+    await _sendFile(streamId, file, options);
+    return {'id': streamId};
+  }
+
+  Future<void> _sendFile(
+    String streamId,
+    File file,
+    SendFileOptions options,
+  ) async {
+    final totalLength = await file.length();
+
+    final streamBytesOptions = StreamBytesOptions(
+      streamId: streamId,
+      totalSize: totalLength,
+      topic: options.topic,
+      mimeType: options.mimeType ?? mime(basename(file.path)),
+      name: basename(file.path),
+      destinationIdentities: options.destinationIdentities,
+      encryptionType: options.encryptionType,
+    );
+
+    final writer = await streamBytes(streamBytesOptions);
+
+    final reader = ChunkedStreamReader(file.openRead());
+
+    final totalChunks = (totalLength / kStreamChunkSize).ceil();
+    for (var i = 0; i < totalChunks; i++) {
+      final chunkData = await reader
+          .readBytes(min((i + 1) * kStreamChunkSize, kStreamChunkSize));
+      await writer.write(chunkData);
+      options.onProgress?.call((i + 1) / totalChunks);
+    }
+    await writer.close();
+    writer.info;
+  }
+
+  Future<ByteStreamWriter> streamBytes(StreamBytesOptions? options) async {
+    final streamId = options?.streamId ?? Uuid().v4();
+
+    final info = ByteStreamInfo(
+      name: options?.name ?? 'unknown',
+      id: streamId,
+      mimeType: options?.mimeType ?? 'application/octet-stream',
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      topic: options?.topic ?? '',
+      size: options?.totalSize ?? 0,
+      attributes: options?.attributes ?? {},
+    );
+
+    final header = lk_models.DataStream_Header(
+      totalLength: Int64(info.size),
+      mimeType: info.mimeType,
+      streamId: streamId,
+      topic: options?.topic,
+      encryptionType: options?.encryptionType,
+      timestamp: Int64(DateTime.now().millisecondsSinceEpoch),
+      byteHeader: lk_models.DataStream_ByteHeader(
+        name: info.name,
+      ),
+    );
+
+    final destinationIdentities = options?.destinationIdentities;
+    final packet = lk_models.DataPacket(
+        destinationIdentities: destinationIdentities, streamHeader: header);
+
+    await room.engine.sendDataPacket(packet, reliability: true);
+
+    var writableStream = WritableStream<Uint8List>(
+      destinationIdentities: destinationIdentities,
+      streamId: streamId,
+      engine: room.engine,
+    );
+
+    onEngineClose() async {
+      await writableStream.close();
+    }
+
+    var cancelFun =
+        room.engine.events.once<EngineClosingEvent>((_) => onEngineClose);
+
+    final byteWriter = ByteStreamWriter(
+      writableStream: writableStream,
+      info: info,
+      onClose: () {
+        cancelFun?.call();
+      },
+    );
+
+    return byteWriter;
   }
 }
