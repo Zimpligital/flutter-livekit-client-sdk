@@ -35,10 +35,7 @@ class MediaDevice {
   bool operator ==(covariant MediaDevice other) {
     if (identical(this, other)) return true;
 
-    return other.deviceId == deviceId &&
-        other.kind == kind &&
-        other.label == label &&
-        other.groupId == groupId;
+    return other.deviceId == deviceId && other.kind == kind && other.label == label && other.groupId == groupId;
   }
 
   @override
@@ -56,19 +53,15 @@ class Hardware {
   Hardware._internal() {
     rtc.navigator.mediaDevices.ondevicechange = _onDeviceChange;
     enumerateDevices().then((devices) {
-      selectedAudioInput ??=
-          devices.firstWhereOrNull((element) => element.kind == 'audioinput');
-      selectedAudioOutput ??=
-          devices.firstWhereOrNull((element) => element.kind == 'audiooutput');
-      selectedVideoInput ??=
-          devices.firstWhereOrNull((element) => element.kind == 'videoinput');
+      selectedAudioInput ??= devices.firstWhereOrNull((element) => element.kind == 'audioinput');
+      selectedAudioOutput ??= devices.firstWhereOrNull((element) => element.kind == 'audiooutput');
+      selectedVideoInput ??= devices.firstWhereOrNull((element) => element.kind == 'videoinput');
     });
   }
 
   static final Hardware instance = Hardware._internal();
 
-  final StreamController<List<MediaDevice>> onDeviceChange =
-      StreamController.broadcast();
+  final StreamController<List<MediaDevice>> onDeviceChange = StreamController.broadcast();
 
   MediaDevice? selectedAudioInput;
 
@@ -102,9 +95,7 @@ class Hardware {
 
   Future<List<MediaDevice>> enumerateDevices({String? type}) async {
     var infos = await rtc.navigator.mediaDevices.enumerateDevices();
-    var devices = infos
-        .map((e) => MediaDevice(e.deviceId, e.label, e.kind!, e.groupId))
-        .toList();
+    var devices = infos.map((e) => MediaDevice(e.deviceId, e.label, e.kind!, e.groupId)).toList();
     if (type != null && type.isNotEmpty) {
       devices = devices.where((d) => d.kind == type).toList();
     }
@@ -135,8 +126,8 @@ class Hardware {
 
   Future<void> selectAudioInput(MediaDevice device) async {
     if (lkPlatformIs(PlatformType.web)) {
-    // ! NEW VERSION IS NOT SUPPORT FOR MOBILE PLEASE CHECK!
-    // if (lkPlatformIs(PlatformType.web) || lkPlatformIsMobile()) {
+      // ! NEW VERSION IS NOT SUPPORT FOR MOBILE PLEASE CHECK!
+      // if (lkPlatformIs(PlatformType.web) || lkPlatformIsMobile()) {
       logger.warning('selectAudioInput is only supported on Windows/macOS');
       return;
     }
@@ -153,8 +144,7 @@ class Hardware {
   /// be prioritized even if set to true.
   /// [forceSpeakerOutput] if true, will force speaker output even if headphones
   /// or bluetooth is connected, only supported on iOS for now
-  Future<void> setSpeakerphoneOnUChatCustom(bool enable,
-      {bool forceSpeakerOutput = false}) async {
+  Future<void> setSpeakerphoneOn(bool enable, {bool forceSpeakerOutput = false}) async {
     if (canSwitchSpeakerphone) {
       _preferSpeakerOutput = enable;
       _forceSpeakerOutput = forceSpeakerOutput;
@@ -187,11 +177,11 @@ class Hardware {
     }
   }
 
-  Future<void> setSpeakerphoneOn(
-      bool enable, {
-        bool? forceSpeakerOutput,
-        bool? isVideoMode,
-      }) async {
+  Future<void> setSpeakerphoneOnUChatCustom(
+    bool enable, {
+    bool? forceSpeakerOutput,
+    bool? isVideoMode,
+  }) async {
     _forceSpeakerOutput = forceSpeakerOutput ?? _forceSpeakerOutput;
     _isVideoMode = isVideoMode ?? _isVideoMode;
 
@@ -227,8 +217,7 @@ class Hardware {
     }
   }
 
-  Future<rtc.MediaStream> openCamera(
-      {MediaDevice? device, bool? facingMode}) async {
+  Future<rtc.MediaStream> openCamera({MediaDevice? device, bool? facingMode}) async {
     var constraints = <String, dynamic>{
       if (facingMode != null) 'facingMode': facingMode ? 'user' : 'environment',
     };
@@ -250,12 +239,9 @@ class Hardware {
 
   dynamic _onDeviceChange(dynamic _) async {
     var devices = await enumerateDevices();
-    selectedAudioInput ??=
-        devices.firstWhereOrNull((element) => element.kind == 'audioinput');
-    selectedAudioOutput ??=
-        devices.firstWhereOrNull((element) => element.kind == 'audiooutput');
-    selectedVideoInput ??=
-        devices.firstWhereOrNull((element) => element.kind == 'videoinput');
+    selectedAudioInput ??= devices.firstWhereOrNull((element) => element.kind == 'audioinput');
+    selectedAudioOutput ??= devices.firstWhereOrNull((element) => element.kind == 'audiooutput');
+    selectedVideoInput ??= devices.firstWhereOrNull((element) => element.kind == 'videoinput');
     onDeviceChange.add(devices);
   }
 }
