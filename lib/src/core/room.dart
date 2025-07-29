@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 import 'package:collection/collection.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 
 import '../core/signal_client.dart';
 import '../data_stream/stream_reader.dart';
@@ -227,6 +228,7 @@ class Room extends DisposableChangeNotifier with EventsEmittable<RoomEvent> {
     @Deprecated('deprecated, please use roomOptions in Room constructor')
     RoomOptions? roomOptions,
     FastConnectOptions? fastConnectOptions,
+    bool enableEarpieceAudio = false,
   }) async {
     var roomOptions = this.roomOptions;
     connectOptions ??= ConnectOptions();
@@ -266,8 +268,9 @@ class Room extends DisposableChangeNotifier with EventsEmittable<RoomEvent> {
       }));
     }
 
-    // configure audio for native platform
-    await NativeAudioManagement.start();
+    await setEarpieceAudio(enableEarpieceAudio);
+    // This prevents the initial 1-second speaker output issue on mobile platforms
+    await Future.delayed(Duration(milliseconds: 500));
 
     try {
       await engine.connect(
@@ -1151,6 +1154,12 @@ extension RoomHardwareManagementMethods on Room {
       logger.warning('could not playback audio $err');
       _handleAudioPlaybackFailed();
     }
+  }
+
+  Future<void> setEarpieceAudio(bool enabled) async {
+    await NativeAudioManagement.start(
+      forceAudioConfig: enabled ? rtc.AndroidAudioConfiguration.media : rtc.AndroidAudioConfiguration.communication,
+    );
   }
 
   bool get canPlaybackAudio {

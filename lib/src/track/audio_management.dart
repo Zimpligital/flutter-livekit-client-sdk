@@ -177,16 +177,20 @@ Future<NativeAudioConfiguration> defaultNativeAudioConfigurationFunc(
 }
 
 class NativeAudioManagement {
-  static Future<void> start() async {
-    // Audio configuration for Android.
-    if (lkPlatformIs(PlatformType.android)) {
-      if (Native.bypassVoiceProcessing) {
-        await rtc.Helper.setAndroidAudioConfiguration(
-            rtc.AndroidAudioConfiguration.media);
-      } else {
-        await rtc.Helper.setAndroidAudioConfiguration(
-            rtc.AndroidAudioConfiguration.communication);
-      }
+  static Future<void> start({
+    rtc.AndroidAudioConfiguration? forceAudioConfig,
+  }) async {
+    if (forceAudioConfig != null) {
+      await rtc.Helper.setAndroidAudioConfiguration(forceAudioConfig);
+      return;
+    }
+
+    if (Native.bypassVoiceProcessing) {
+      await rtc.Helper.setAndroidAudioConfiguration(
+        rtc.AndroidAudioConfiguration.media);
+    } else {
+      await rtc.Helper.setAndroidAudioConfiguration(
+        rtc.AndroidAudioConfiguration.communication);
     }
   }
 
