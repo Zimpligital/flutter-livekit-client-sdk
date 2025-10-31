@@ -26,6 +26,7 @@ import 'track/processor.dart';
 import 'track/track.dart';
 import 'types/other.dart';
 import 'types/participant_permissions.dart';
+import 'types/participant_state.dart' show ParticipantState;
 import 'types/transcription_segment.dart';
 
 /// Base type for all LiveKit events.
@@ -372,10 +373,21 @@ class ParticipantMetadataUpdatedEvent with RoomEvent, ParticipantEvent {
   String toString() => '${runtimeType}(participant: ${participant})';
 }
 
+class ParticipantStateUpdatedEvent with RoomEvent, ParticipantEvent {
+  final Participant participant;
+  final ParticipantState state;
+  const ParticipantStateUpdatedEvent({
+    required this.participant,
+    required this.state,
+  });
+
+  @override
+  String toString() => '${runtimeType}(participant: ${participant}, state: ${state})';
+}
+
 /// [Pariticpant]'s [ConnectionQuality] has updated.
 /// Emitted by [Room] and [Participant].
-class ParticipantConnectionQualityUpdatedEvent
-    with RoomEvent, ParticipantEvent {
+class ParticipantConnectionQualityUpdatedEvent with RoomEvent, ParticipantEvent {
   final Participant participant;
   final ConnectionQuality connectionQuality;
   const ParticipantConnectionQualityUpdatedEvent({
@@ -575,4 +587,34 @@ class TrackProcessorUpdateEvent with TrackEvent {
   @override
   String toString() => '${runtimeType}'
       'track: ${track})';
+}
+
+/// Pre-connect audio buffer has started recording.
+/// Emitted by [Room].
+class PreConnectAudioBufferStartedEvent with RoomEvent {
+  final int sampleRate;
+  final Duration timeout;
+  const PreConnectAudioBufferStartedEvent({
+    required this.sampleRate,
+    required this.timeout,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      '(sampleRate: ${sampleRate}, timeout: ${timeout})';
+}
+
+/// Pre-connect audio buffer has stopped recording.
+/// Emitted by [Room].
+class PreConnectAudioBufferStoppedEvent with RoomEvent {
+  final int bufferedSize;
+  final bool isBufferSent;
+  const PreConnectAudioBufferStoppedEvent({
+    required this.bufferedSize,
+    required this.isBufferSent,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      '(bufferedSize: ${bufferedSize}, isDataSent: ${isBufferSent})';
 }
