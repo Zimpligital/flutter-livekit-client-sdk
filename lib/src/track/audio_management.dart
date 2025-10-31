@@ -135,7 +135,6 @@ Future<void> _onAudioTrackCountDidChange() async {
         //
         // // TODO: Mod line 2, ask nut
         // await Hardware.instance.setSpeakerphoneOn(preferSpeakerOutput);
-
       } catch (error) {
         logger.warning('failed to configure ${error}');
       }
