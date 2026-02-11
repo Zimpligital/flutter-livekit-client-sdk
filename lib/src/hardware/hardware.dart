@@ -114,17 +114,16 @@ class Hardware {
   }
 
   Future<void> selectAudioOutput(MediaDevice device) async {
-    if (!lkPlatformIsDesktop()) {
-      logger.warning('selectAudioOutput is only supported on Desktop');
-      return;
-    }
+    // UChat: Removed desktop-only restriction to allow audio output selection
+    // on mobile platforms (Android/iOS) for Bluetooth/speaker/earpiece switching
     selectedAudioOutput = device;
     await rtc.Helper.selectAudioOutput(device.deviceId);
   }
 
   Future<void> selectAudioInput(MediaDevice device) async {
-    if (lkPlatformIs(PlatformType.web) || lkPlatformIsMobile()) {
-      logger.warning('selectAudioInput is only supported on Windows/macOS');
+    // UChat: Changed from (web || mobile) to (web only) to allow Android audio input selection
+    if (lkPlatformIs(PlatformType.web)) {
+      logger.warning('selectAudioInput is not supported on Web');
       return;
     }
     selectedAudioInput = device;
