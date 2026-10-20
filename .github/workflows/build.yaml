@@ -66,6 +66,12 @@ jobs:
       - uses: ./.github/actions/setup-flutter
       - name: Dart Analyze Check
         run: flutter analyze
+      # `flutter analyze` runs Flutter's AnalysisOptionsMigration first, which
+      # forces `web/**` into analysis_options.yaml. This package keeps real Dart
+      # source there (the E2EE worker), so analyze it separately -- `dart
+      # analyze` does not run migrators.
+      - name: Dart Analyze Check (web sources)
+        run: dart analyze web/
 
   dart-test-check:
     name: Dart Test
@@ -107,6 +113,24 @@ jobs:
           else
             xcodebuild -downloadPlatform iOS
           fi
+      # The Flutter tool copies plugins with SwiftPM plugin dependencies into the
+      # app build directory with rsync. Since the example lives inside the plugin
+      # repo that copy would recurse into its own output, so point the build
+      # directory outside the repository.
+      - name: Move example build dir outside the repository
+        working-directory: ./example
+        run: |
+          mkdir -p "$RUNNER_TEMP/example-build"
+          rm -rf build
+          ln -s "$RUNNER_TEMP/example-build" build
+      - name: Enable Swift Package Manager for the example
+        working-directory: ./example
+        # The example disables SwiftPM in its pubspec for local builds; CI keeps building the
+        # plugin as a Swift package. A pubspec setting takes precedence over flutter config and
+        # FLUTTER_SWIFT_PACKAGE_MANAGER, so flip it in place.
+        run: |
+          sed -i '' 's/enable-swift-package-manager: false/enable-swift-package-manager: true/' pubspec.yaml
+          grep -q 'enable-swift-package-manager: true' pubspec.yaml
       - name: Build for iOS
         working-directory: ./example
         run: flutter build ios --release --no-codesign
@@ -131,6 +155,19 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v6
       - uses: ./.github/actions/setup-flutter
+      # See the iOS job, same flutter tool rsync recursion workaround.
+      - name: Move example build dir outside the repository
+        working-directory: ./example
+        run: |
+          mkdir -p "$RUNNER_TEMP/example-build"
+          rm -rf build
+          ln -s "$RUNNER_TEMP/example-build" build
+      - name: Enable Swift Package Manager for the example
+        working-directory: ./example
+        # See the iOS job.
+        run: |
+          sed -i '' 's/enable-swift-package-manager: false/enable-swift-package-manager: true/' pubspec.yaml
+          grep -q 'enable-swift-package-manager: true' pubspec.yaml
       - name: Build for macOS
         working-directory: ./example
         run: flutter build macos --release

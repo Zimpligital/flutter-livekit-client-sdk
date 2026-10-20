@@ -44,14 +44,16 @@ extension UriExt on Uri {
   bool get isSecureScheme => ['https', 'wss'].contains(scheme);
 }
 
-typedef RetryFuture<T> = Future<T> Function(
-  int triesLeft,
-  List<Object> errors,
-);
-typedef RetryCondition = bool Function(
-  int triesLeft,
-  List<Object> errors,
-);
+typedef RetryFuture<T> =
+    Future<T> Function(
+      int triesLeft,
+      List<Object> errors,
+    );
+typedef RetryCondition =
+    bool Function(
+      int triesLeft,
+      List<Object> errors,
+    );
 
 // Collection of state-less static methods
 class Utils {
@@ -64,6 +66,7 @@ class Utils {
   /// thrown objects by the [future].
   static Future<T> retry<T>(
     RetryFuture<T> future, {
+
     /// number of total tries (first try + retries)
     int tries = 1,
     Duration delay = const Duration(seconds: 1),
@@ -195,6 +198,7 @@ class Utils {
         if (reconnect && reconnectReason != null) 'reconnect_reason': reconnectReason.value.toString(),
         if (reconnect && sid != null) 'sid': sid,
         'protocol': connectOptions.protocolVersion.toStringValue(),
+        'client_protocol': connectOptions.clientProtocolVersion.toStringValue(),
         'sdk': 'flutter',
         'version': LiveKitClient.version,
         'network': networkType,
@@ -234,8 +238,10 @@ class Utils {
 
     return [
       VideoParameters(
-        dimensions:
-            VideoDimensions((original.dimensions.width / scale).floor(), (original.dimensions.height / scale).floor()),
+        dimensions: VideoDimensions(
+          (original.dimensions.width / scale).floor(),
+          (original.dimensions.height / scale).floor(),
+        ),
         encoding: VideoEncoding(
           maxBitrate: math.max(
             150 * 1000,
@@ -315,10 +321,12 @@ class Utils {
       final size = dimensions.max();
       final rid = videoRids[i];
       if (e.encoding != null) {
-        result.add(e.encoding!.toRTCRtpEncoding(
-          rid: rid,
-          scaleResolutionDownBy: math.max(1, size / e.dimensions.max()),
-        ));
+        result.add(
+          e.encoding!.toRTCRtpEncoding(
+            rid: rid,
+            scaleResolutionDownBy: math.max(1, size / e.dimensions.max()),
+          ),
+        );
       }
     });
     return result;
@@ -331,10 +339,11 @@ class Utils {
     required List<VideoParameters> requestedPresets,
     required bool isScreenShare,
   }) {
-    final params = (requestedPresets.isNotEmpty
-            ? requestedPresets
-            : _computeDefaultSimulcastParams(isScreenShare: isScreenShare, original: original))
-        .sorted();
+    final params =
+        (requestedPresets.isNotEmpty
+                ? requestedPresets
+                : _computeDefaultSimulcastParams(isScreenShare: isScreenShare, original: original))
+            .sorted();
 
     if (params.isEmpty) {
       return [original];
@@ -372,8 +381,9 @@ class Utils {
 
     final rawScaleDownBy = inDimensions.max() / preset.dimensions.max();
     final clampedFramerate = math.min(presetEncoding.maxFramerate, topEncoding.maxFramerate);
-    final clampedBitrate =
-        rawScaleDownBy <= 1.0 ? math.min(presetEncoding.maxBitrate, topEncoding.maxBitrate) : presetEncoding.maxBitrate;
+    final clampedBitrate = rawScaleDownBy <= 1.0
+        ? math.min(presetEncoding.maxBitrate, topEncoding.maxBitrate)
+        : presetEncoding.maxBitrate;
 
     if (clampedFramerate == presetEncoding.maxFramerate && clampedBitrate == presetEncoding.maxBitrate) {
       return preset;
@@ -494,13 +504,15 @@ class Utils {
         final sm = ScalabilityMode(scalabilityMode);
         for (var i = 0; i < sm.spatial; i += 1) {
           // in legacy SVC, scaleResolutionDownBy cannot be set
-          encodings.add(rtc.RTCRtpEncoding(
-            rid: videoRids[2 - i],
-            maxBitrate: videoEncoding.maxBitrate ~/ math.pow(3, i),
-            maxFramerate: original.encoding!.maxFramerate,
-            priority: videoEncoding.bitratePriority?.toRtcpPriorityType() ?? rtc.RTCPriorityType.low,
-            networkPriority: videoEncoding.networkPriority?.toRtcpPriorityType(),
-          ));
+          encodings.add(
+            rtc.RTCRtpEncoding(
+              rid: videoRids[2 - i],
+              maxBitrate: videoEncoding.maxBitrate ~/ math.pow(3, i),
+              maxFramerate: original.encoding!.maxFramerate,
+              priority: videoEncoding.bitratePriority?.toRtcpPriorityType() ?? rtc.RTCPriorityType.low,
+              networkPriority: videoEncoding.networkPriority?.toRtcpPriorityType(),
+            ),
+          );
         }
       } else {
         encodings.add(videoEncoding.toRTCRtpEncoding());
@@ -561,7 +573,7 @@ class Utils {
           width: dimensions.width,
           height: dimensions.height,
           bitrate: 0,
-        )
+        ),
       ];
     }
 
@@ -570,12 +582,14 @@ class Utils {
       final List<lk_models.VideoLayer> layers = [];
       final maxBitrate = encodings[0].maxBitrate ?? 0;
       for (var i = 0; i < sm.spatial; i++) {
-        layers.add(lk_models.VideoLayer(
-          quality: lk_models.VideoQuality.valueOf(lk_models.VideoQuality.HIGH.value - i),
-          width: (dimensions.width / math.pow(2, i)).floor(),
-          height: (dimensions.height / math.pow(2, i)).floor(),
-          bitrate: (maxBitrate / math.pow(3, i)).ceil(),
-        ));
+        layers.add(
+          lk_models.VideoLayer(
+            quality: lk_models.VideoQuality.valueOf(lk_models.VideoQuality.HIGH.value - i),
+            width: (dimensions.width / math.pow(2, i)).floor(),
+            height: (dimensions.height / math.pow(2, i)).floor(),
+            bitrate: (maxBitrate / math.pow(3, i)).ceil(),
+          ),
+        );
       }
       return layers;
     }
@@ -597,10 +611,10 @@ class Utils {
 
   @internal
   static lk_models.VideoQuality? videoQualityForRid(String? rid) => {
-        'f': lk_models.VideoQuality.HIGH,
-        'h': lk_models.VideoQuality.MEDIUM,
-        'q': lk_models.VideoQuality.LOW,
-      }[rid];
+    'f': lk_models.VideoQuality.HIGH,
+    'h': lk_models.VideoQuality.MEDIUM,
+    'q': lk_models.VideoQuality.LOW,
+  }[rid];
 
   // makes a debounce func, with 1 param
   @internal
@@ -626,7 +640,33 @@ const refreshSubscribedCodecAfterNewCodec = 5000;
 
 bool isSVCCodec(String codec) => ['vp9', 'av1'].contains(codec.toLowerCase());
 
+bool isVideoCodec(String codec) => ['vp8', 'vp9', 'av1', 'h264', 'h265'].contains(codec.toLowerCase());
+
 bool isAV1Codec(String codec) => codec.toLowerCase() == 'av1';
+
+/// Whether [codec] is being published as SVC-flavoured simulcast rather than as a single
+/// SVC stream: an `L1T*` scalability mode with simulcast on means the encodings are
+/// independent streams, not the spatial layers of one.
+bool isSVCSimulcast(String codec, VideoPublishOptions? options) =>
+    isSVCCodec(codec) && (options?.simulcast ?? false) && (options?.scalabilityMode?.startsWith('L1T') ?? false);
+
+/// The publish target the `x-google-start-bitrate` hint is derived from, in bps.
+///
+/// A single SVC stream declares its whole budget on the first encoding, so that one value is
+/// the target. Everything else — plain simulcast, and SVC published as simulcast — spreads
+/// the budget across independent encodings, so the target is their sum. Taking only the first
+/// encoding there would read the lowest simulcast layer (rids are ordered `q`, `h`, `f`) and
+/// understate the target by roughly an order of magnitude.
+@internal
+int computeStartTargetBitrate(String codec, VideoPublishOptions? options, List<rtc.RTCRtpEncoding>? encodings) {
+  if (encodings == null || encodings.isEmpty) {
+    return 0;
+  }
+  if (isSVCCodec(codec) && !isSVCSimulcast(codec, options)) {
+    return encodings.first.maxBitrate ?? 0;
+  }
+  return encodings.fold<int>(0, (sum, e) => sum + (e.maxBitrate ?? 0));
+}
 
 class ScalabilityMode {
   late num spatial;
@@ -759,8 +799,8 @@ int compareVersions(String v1, String v2) {
   return parts1.length == parts2.length
       ? 0
       : parts1.length < parts2.length
-          ? -1
-          : 1;
+      ? -1
+      : 1;
 }
 
 List<Uint8List> splitUtf8(String s, int n) {

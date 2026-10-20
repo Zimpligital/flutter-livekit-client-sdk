@@ -14,6 +14,8 @@
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'package:meta/meta.dart';
+
 import '../support/native.dart';
 import '../support/platform.dart';
 import '../track/local/audio.dart';
@@ -35,10 +37,10 @@ enum CameraExposureMode { auto, locked }
 /// Convenience extension for [CameraPosition].
 extension CameraPositionExt on CameraPosition {
   /// Return a [CameraPosition] which front and back is switched.
-  CameraPosition switched() => {
-        CameraPosition.front: CameraPosition.back,
-        CameraPosition.back: CameraPosition.front,
-      }[this]!;
+  CameraPosition switched() => switch (this) {
+    CameraPosition.front => CameraPosition.back,
+    CameraPosition.back => CameraPosition.front,
+  };
 }
 
 /// Options used when creating a [LocalVideoTrack] that captures the camera.
@@ -64,29 +66,29 @@ class CameraCaptureOptions extends VideoCaptureOptions {
     this.stopCameraCaptureOnMute = true,
     TrackProcessor<VideoProcessorOptions>? processor,
   }) : super(
-          params: params,
-          deviceId: deviceId,
-          maxFrameRate: maxFrameRate,
-          processor: processor,
-        );
+         params: params,
+         deviceId: deviceId,
+         maxFrameRate: maxFrameRate,
+         processor: processor,
+       );
 
   CameraCaptureOptions.from({required VideoCaptureOptions captureOptions})
-      : cameraPosition = CameraPosition.front,
-        focusMode = CameraFocusMode.auto,
-        exposureMode = CameraExposureMode.auto,
-        stopCameraCaptureOnMute = true,
-        super(
-          params: captureOptions.params,
-          deviceId: captureOptions.deviceId,
-          maxFrameRate: captureOptions.maxFrameRate,
-          processor: captureOptions.processor,
-        );
+    : cameraPosition = CameraPosition.front,
+      focusMode = CameraFocusMode.auto,
+      exposureMode = CameraExposureMode.auto,
+      stopCameraCaptureOnMute = true,
+      super(
+        params: captureOptions.params,
+        deviceId: captureOptions.deviceId,
+        maxFrameRate: captureOptions.maxFrameRate,
+        processor: captureOptions.processor,
+      );
 
   @override
   Map<String, dynamic> toMediaConstraintsMap() {
     final constraints = <String, dynamic>{
       ...super.toMediaConstraintsMap(),
-      if (deviceId == null) 'facingMode': cameraPosition == CameraPosition.front ? 'user' : 'environment'
+      if (deviceId == null) 'facingMode': cameraPosition == CameraPosition.front ? 'user' : 'environment',
     };
     if (deviceId != null && deviceId!.isNotEmpty) {
       if (kIsWeb) {
@@ -97,7 +99,7 @@ class CameraCaptureOptions extends VideoCaptureOptions {
         }
       } else {
         constraints['optional'] = [
-          {'sourceId': deviceId}
+          {'sourceId': deviceId},
         ];
       }
     }
@@ -117,17 +119,16 @@ class CameraCaptureOptions extends VideoCaptureOptions {
     VideoParameters? params,
     bool? stopCameraCaptureOnMute,
     TrackProcessor<VideoProcessorOptions>? processor,
-  }) =>
-      CameraCaptureOptions(
-        cameraPosition: cameraPosition ?? this.cameraPosition,
-        focusMode: focusMode ?? this.focusMode,
-        exposureMode: exposureMode ?? this.exposureMode,
-        deviceId: deviceId ?? this.deviceId,
-        maxFrameRate: maxFrameRate ?? this.maxFrameRate,
-        params: params ?? this.params,
-        stopCameraCaptureOnMute: stopCameraCaptureOnMute ?? this.stopCameraCaptureOnMute,
-        processor: processor ?? this.processor,
-      );
+  }) => CameraCaptureOptions(
+    cameraPosition: cameraPosition ?? this.cameraPosition,
+    focusMode: focusMode ?? this.focusMode,
+    exposureMode: exposureMode ?? this.exposureMode,
+    deviceId: deviceId ?? this.deviceId,
+    maxFrameRate: maxFrameRate ?? this.maxFrameRate,
+    params: params ?? this.params,
+    stopCameraCaptureOnMute: stopCameraCaptureOnMute ?? this.stopCameraCaptureOnMute,
+    processor: processor ?? this.processor,
+  );
 }
 
 /// Options used when creating a [LocalVideoTrack] that captures the screen.
@@ -156,13 +157,13 @@ class ScreenShareCaptureOptions extends VideoCaptureOptions {
     VideoParameters params = VideoParametersPresets.screenShareH1080FPS15,
   }) : super(params: params, deviceId: sourceId, maxFrameRate: maxFrameRate);
 
-  ScreenShareCaptureOptions.from(
-      {this.useiOSBroadcastExtension = false,
-      this.captureScreenAudio = false,
-      this.preferCurrentTab = false,
-      this.selfBrowserSurface,
-      required VideoCaptureOptions captureOptions})
-      : super(params: captureOptions.params);
+  ScreenShareCaptureOptions.from({
+    this.useiOSBroadcastExtension = false,
+    this.captureScreenAudio = false,
+    this.preferCurrentTab = false,
+    this.selfBrowserSurface,
+    required VideoCaptureOptions captureOptions,
+  }) : super(params: captureOptions.params);
 
   ScreenShareCaptureOptions copyWith({
     bool? useiOSBroadcastExtension,
@@ -172,16 +173,15 @@ class ScreenShareCaptureOptions extends VideoCaptureOptions {
     double? maxFrameRate,
     bool? preferCurrentTab,
     String? selfBrowserSurface,
-  }) =>
-      ScreenShareCaptureOptions(
-        useiOSBroadcastExtension: useiOSBroadcastExtension ?? this.useiOSBroadcastExtension,
-        captureScreenAudio: captureScreenAudio ?? this.captureScreenAudio,
-        params: params ?? this.params,
-        sourceId: sourceId ?? deviceId,
-        maxFrameRate: maxFrameRate ?? this.maxFrameRate,
-        preferCurrentTab: preferCurrentTab ?? this.preferCurrentTab,
-        selfBrowserSurface: selfBrowserSurface ?? this.selfBrowserSurface,
-      );
+  }) => ScreenShareCaptureOptions(
+    useiOSBroadcastExtension: useiOSBroadcastExtension ?? this.useiOSBroadcastExtension,
+    captureScreenAudio: captureScreenAudio ?? this.captureScreenAudio,
+    params: params ?? this.params,
+    sourceId: sourceId ?? deviceId,
+    maxFrameRate: maxFrameRate ?? this.maxFrameRate,
+    preferCurrentTab: preferCurrentTab ?? this.preferCurrentTab,
+    selfBrowserSurface: selfBrowserSurface ?? this.selfBrowserSurface,
+  );
 
   @override
   Map<String, dynamic> toMediaConstraintsMap() {
@@ -243,6 +243,9 @@ abstract class VideoCaptureOptions extends LocalTrackOptions {
 }
 
 /// Selects whether a voice-processing component uses platform or software processing.
+///
+/// Experimental: this API may change in a future release.
+@experimental
 enum AudioProcessingMode {
   automatic('auto'),
   platform('platform'),
@@ -260,6 +263,9 @@ enum AudioProcessingMode {
 /// the updated processing config. The effective audio processing module config
 /// is shared by the native voice engine/channel, so conflicting updates from
 /// multiple local tracks are not isolated per track.
+///
+/// Experimental: this API may change in a future release.
+@experimental
 class AudioProcessingOptions {
   const AudioProcessingOptions({
     required this.echoCancellation,
@@ -273,24 +279,24 @@ class AudioProcessingOptions {
   });
 
   const AudioProcessingOptions.communication()
-      : echoCancellation = true,
-        noiseSuppression = true,
-        autoGainControl = true,
-        highPassFilter = true,
-        echoCancellationMode = AudioProcessingMode.automatic,
-        noiseSuppressionMode = AudioProcessingMode.automatic,
-        autoGainControlMode = AudioProcessingMode.automatic,
-        highPassFilterMode = AudioProcessingMode.automatic;
+    : echoCancellation = true,
+      noiseSuppression = true,
+      autoGainControl = true,
+      highPassFilter = true,
+      echoCancellationMode = AudioProcessingMode.automatic,
+      noiseSuppressionMode = AudioProcessingMode.automatic,
+      autoGainControlMode = AudioProcessingMode.automatic,
+      highPassFilterMode = AudioProcessingMode.automatic;
 
-  const AudioProcessingOptions.raw()
-      : echoCancellation = false,
-        noiseSuppression = false,
-        autoGainControl = false,
-        highPassFilter = false,
-        echoCancellationMode = AudioProcessingMode.automatic,
-        noiseSuppressionMode = AudioProcessingMode.automatic,
-        autoGainControlMode = AudioProcessingMode.automatic,
-        highPassFilterMode = AudioProcessingMode.automatic;
+  const AudioProcessingOptions.noProcessing()
+    : echoCancellation = false,
+      noiseSuppression = false,
+      autoGainControl = false,
+      highPassFilter = false,
+      echoCancellationMode = AudioProcessingMode.automatic,
+      noiseSuppressionMode = AudioProcessingMode.automatic,
+      autoGainControlMode = AudioProcessingMode.automatic,
+      highPassFilterMode = AudioProcessingMode.automatic;
 
   final bool echoCancellation;
   final bool noiseSuppression;
@@ -302,15 +308,15 @@ class AudioProcessingOptions {
   final AudioProcessingMode highPassFilterMode;
 
   Map<String, dynamic> toMap() => {
-        'echoCancellation': echoCancellation,
-        'noiseSuppression': noiseSuppression,
-        'autoGainControl': autoGainControl,
-        'highPassFilter': highPassFilter,
-        'echoCancellationMode': echoCancellationMode.constraintValue,
-        'noiseSuppressionMode': noiseSuppressionMode.constraintValue,
-        'autoGainControlMode': autoGainControlMode.constraintValue,
-        'highPassFilterMode': highPassFilterMode.constraintValue,
-      };
+    'echoCancellation': echoCancellation,
+    'noiseSuppression': noiseSuppression,
+    'autoGainControl': autoGainControl,
+    'highPassFilter': highPassFilter,
+    'echoCancellationMode': echoCancellationMode.constraintValue,
+    'noiseSuppressionMode': noiseSuppressionMode.constraintValue,
+    'autoGainControlMode': autoGainControlMode.constraintValue,
+    'highPassFilterMode': highPassFilterMode.constraintValue,
+  };
 }
 
 /// Options used when creating a [LocalAudioTrack].
@@ -390,15 +396,15 @@ class AudioCaptureOptions extends LocalTrackOptions implements AudioProcessingOp
   });
 
   AudioProcessingOptions get processing => AudioProcessingOptions(
-        echoCancellation: echoCancellation,
-        noiseSuppression: noiseSuppression,
-        autoGainControl: autoGainControl,
-        highPassFilter: highPassFilter,
-        echoCancellationMode: echoCancellationMode,
-        noiseSuppressionMode: noiseSuppressionMode,
-        autoGainControlMode: autoGainControlMode,
-        highPassFilterMode: highPassFilterMode,
-      );
+    echoCancellation: echoCancellation,
+    noiseSuppression: noiseSuppression,
+    autoGainControl: autoGainControl,
+    highPassFilter: highPassFilter,
+    echoCancellationMode: echoCancellationMode,
+    noiseSuppressionMode: noiseSuppressionMode,
+    autoGainControlMode: autoGainControlMode,
+    highPassFilterMode: highPassFilterMode,
+  );
 
   @override
   Map<String, dynamic> toMap() => processing.toMap();
@@ -509,55 +515,55 @@ class AudioOutputOptions {
   }
 }
 
-/// Result code from applying [AudioProcessingOptions], mirroring the native
-/// `AudioProcessingOptionsResult`. `applied`/`stored` are success; the rest are
-/// rejections.
-enum AudioProcessingOptionsResultCode {
-  applied('applied'),
-  stored('stored'),
-  rejectedRemoteTrack('rejectedRemoteTrack'),
-  rejectedInvalidCombination('rejectedInvalidCombination'),
-  rejectedPlatformUnavailable('rejectedPlatformUnavailable'),
-  applyFailed('applyFailed');
+/// Reason that applying [AudioProcessingOptions] failed.
+///
+/// Experimental: this API may change in a future release.
+@experimental
+enum AudioProcessingFailureReason {
+  /// The requested mode combination is invalid for the native audio module.
+  invalidCombination,
 
-  const AudioProcessingOptionsResultCode(this.value);
+  /// The platform or device cannot provide the requested processing path.
+  platformUnavailable,
 
-  final String value;
+  /// The native layer attempted to apply the options but failed.
+  applyFailed,
 
-  static AudioProcessingOptionsResultCode fromValue(String? value) =>
-      AudioProcessingOptionsResultCode.values.firstWhere(
-        (e) => e.value == value,
-        orElse: () => AudioProcessingOptionsResultCode.applyFailed,
-      );
-
-  bool get isSuccess =>
-      this == AudioProcessingOptionsResultCode.applied || this == AudioProcessingOptionsResultCode.stored;
+  /// The native layer returned an unrecognized or malformed result.
+  unknown,
 }
 
-/// Thrown when the native layer rejects requested [AudioProcessingOptions]
-/// (e.g. an invalid platform/software combination, or platform processing that
-/// is unavailable on the device).
-class AudioProcessingException implements Exception {
-  AudioProcessingException(this.code, this.message);
+String _defaultAudioProcessingMessage(AudioProcessingFailureReason reason) {
+  switch (reason) {
+    case AudioProcessingFailureReason.invalidCombination:
+      return 'The requested audio processing mode combination is invalid.';
+    case AudioProcessingFailureReason.platformUnavailable:
+      return 'Audio processing options are unavailable on this platform or device.';
+    case AudioProcessingFailureReason.applyFailed:
+      return 'The native WebRTC audio processing module could not apply the requested options.';
+    case AudioProcessingFailureReason.unknown:
+      return 'Audio processing options failed for an unknown reason.';
+  }
+}
 
-  final AudioProcessingOptionsResultCode code;
+String _audioProcessingMessageOrDefault(AudioProcessingFailureReason reason, String message) {
+  final trimmed = message.trim();
+  return trimmed.isEmpty ? _defaultAudioProcessingMessage(reason) : trimmed;
+}
+
+/// Thrown when [AudioProcessingOptions] cannot be applied.
+///
+/// [reason] is a stable SDK category. [message] carries native details when
+/// available, or an SDK-provided fallback when native does not include details.
+///
+/// Experimental: this API may change in a future release.
+@experimental
+class AudioProcessingException implements Exception {
+  AudioProcessingException(this.reason, String message) : message = _audioProcessingMessageOrDefault(reason, message);
+
+  final AudioProcessingFailureReason reason;
   final String message;
 
   @override
-  String toString() => 'AudioProcessingException(${code.value}): $message';
-}
-
-/// Outcome of applying [AudioProcessingOptions].
-///
-/// Returned for operational outcomes — `applied`/`stored` (success), and the
-/// device-capability rejections `rejectedPlatformUnavailable`/`applyFailed`
-/// (inspect [isSuccess]). A malformed request (incompatible modes, or a
-/// non-local track) throws [AudioProcessingException] instead.
-class AudioProcessingApplyResult {
-  AudioProcessingApplyResult(this.code, this.message);
-
-  final AudioProcessingOptionsResultCode code;
-  final String message;
-
-  bool get isSuccess => code.isSuccess;
+  String toString() => 'AudioProcessingException(${reason.name}): $message';
 }
