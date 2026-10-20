@@ -167,6 +167,14 @@ abstract class Track extends DisposableChangeNotifier with EventsEmittable<Track
     }
   }
 
+  /// Whether started tracks poll WebRTC stats every [monitorFrequency] ms to emit the
+  /// `*StatsEvent`s. Each poll runs `getStats` on the platform thread, walking every sender and
+  /// receiver, so apps that never read these events can turn it off before connecting.
+  /// On-demand `getSenderStats` / `getReceiverStats` keep working either way.
+  ///
+  /// UChat (UCHAT3-40288): periodic polling froze large Android group calls and heated iOS devices.
+  static bool statsMonitorEnabled = true;
+
   Timer? _monitorTimer;
 
   @internal
@@ -183,6 +191,7 @@ abstract class Track extends DisposableChangeNotifier with EventsEmittable<Track
 
   @internal
   void startMonitor() {
+    if (!statsMonitorEnabled) return;
     if (_monitorTimer != null) return;
     var inFlight = false;
     _monitorTimer = Timer.periodic(const Duration(milliseconds: monitorFrequency), (timer) async {
