@@ -168,6 +168,12 @@ abstract class Track extends DisposableChangeNotifier with EventsEmittable<Track
     }
   }
 
+  /// Whether started tracks poll WebRTC stats every [monitorFrequency] ms to emit the
+  /// `*StatsEvent`s. Each poll runs `getStats` on the platform thread, walking every sender and
+  /// receiver, so apps that never read these events can turn it off before connecting.
+  /// On-demand `getSenderStats` / `getReceiverStats` keep working either way.
+  static bool statsMonitorEnabled = true;
+
   Timer? _monitorTimer;
 
   @internal
@@ -181,6 +187,7 @@ abstract class Track extends DisposableChangeNotifier with EventsEmittable<Track
 
   @internal
   void startMonitor() {
+    if (!statsMonitorEnabled) return;
     _monitorTimer ??= Timer.periodic(const Duration(milliseconds: monitorFrequency), (_) async {
       if (!await monitorStats()) {
         stopMonitor();
