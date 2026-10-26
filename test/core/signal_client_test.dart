@@ -118,6 +118,26 @@ final lk_rtc.SignalResponse participantDisconnectResponse = lk_rtc.SignalRespons
     ],
   ),
 );
+final lk_rtc.SignalResponse participantHangupResponse = lk_rtc.SignalResponse(
+  update: lk_rtc.ParticipantUpdate(
+    participants: [
+      remoteParticipantData.deepCopy()
+        ..state = lk_models.ParticipantInfo_State.DISCONNECTED
+        ..disconnectReason = lk_models.DisconnectReason.CLIENT_INITIATED,
+    ],
+  ),
+);
+
+final lk_rtc.SignalResponse participantTimeoutResponse = lk_rtc.SignalResponse(
+  update: lk_rtc.ParticipantUpdate(
+    participants: [
+      remoteParticipantData.deepCopy()
+        ..state = lk_models.ParticipantInfo_State.DISCONNECTED
+        ..disconnectReason = lk_models.DisconnectReason.CONNECTION_TIMEOUT,
+    ],
+  ),
+);
+
 final lk_rtc.SignalResponse participantMetadataChangedResponse = lk_rtc.SignalResponse(
   update: lk_rtc.ParticipantUpdate(
     participants: [

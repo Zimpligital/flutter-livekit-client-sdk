@@ -188,12 +188,18 @@ class ParticipantConnectedEvent with RoomEvent {
 /// Emitted by [Room].
 class ParticipantDisconnectedEvent with RoomEvent {
   final RemoteParticipant participant;
+
+  /// Why the server dropped [participant]. Null when this client removed the
+  /// participant itself (full reconnect, room move), not the server.
+  final DisconnectReason? reason;
+
   const ParticipantDisconnectedEvent({
     required this.participant,
+    this.reason,
   });
 
   @override
-  String toString() => '${runtimeType}(participant: ${participant})';
+  String toString() => '${runtimeType}(participant: ${participant}, reason: ${reason})';
 }
 
 /// Active speakers changed. List of speakers are ordered by their audio level.

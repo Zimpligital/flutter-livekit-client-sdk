@@ -237,7 +237,10 @@ extension EncryptionTypeExt on lk_models.Encryption_Type {
 }
 
 extension DisconnectReasonExt on lk_models.DisconnectReason {
-  DisconnectReason toSDKType() => {
+  /// Reasons newer than [DisconnectReason] (e.g. CONNECTION_TIMEOUT, SIGNAL_CLOSE)
+  /// map to [DisconnectReason.unknown] instead of throwing.
+  DisconnectReason toSDKType() =>
+      {
         lk_models.DisconnectReason.UNKNOWN_REASON: DisconnectReason.unknown,
         lk_models.DisconnectReason.CLIENT_INITIATED: DisconnectReason.clientInitiated,
         lk_models.DisconnectReason.DUPLICATE_IDENTITY: DisconnectReason.duplicateIdentity,
@@ -246,7 +249,8 @@ extension DisconnectReasonExt on lk_models.DisconnectReason {
         lk_models.DisconnectReason.ROOM_DELETED: DisconnectReason.roomDeleted,
         lk_models.DisconnectReason.STATE_MISMATCH: DisconnectReason.stateMismatch,
         lk_models.DisconnectReason.JOIN_FAILURE: DisconnectReason.joinFailure,
-      }[this]!;
+      }[this] ??
+      DisconnectReason.unknown;
 }
 
 extension ParticipantTypeExt on lk_models.ParticipantInfo_Kind {

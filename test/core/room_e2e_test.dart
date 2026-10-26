@@ -130,6 +130,25 @@ void main() {
       expect(room.remoteParticipants.length, 0);
     });
 
+    test('participant disconnect carries the server reason', () async {
+      ws.onData(participantJoinResponse.writeToBuffer());
+      await room.events.waitFor<ParticipantConnectedEvent>(duration: const Duration(seconds: 1));
+
+      ws.onData(participantHangupResponse.writeToBuffer());
+      final event = await room.events.waitFor<ParticipantDisconnectedEvent>(duration: const Duration(seconds: 1));
+      expect(event.reason, DisconnectReason.clientInitiated);
+    });
+
+    test('participant disconnect with a reason newer than the SDK enum maps to unknown', () async {
+      ws.onData(participantJoinResponse.writeToBuffer());
+      await room.events.waitFor<ParticipantConnectedEvent>(duration: const Duration(seconds: 1));
+
+      ws.onData(participantTimeoutResponse.writeToBuffer());
+      final event = await room.events.waitFor<ParticipantDisconnectedEvent>(duration: const Duration(seconds: 1));
+      expect(event.reason, DisconnectReason.unknown);
+      expect(room.remoteParticipants.length, 0);
+    });
+
     test('participant metadata changed', () async {
       ws.onData(participantJoinResponse.writeToBuffer());
       await room.events.waitFor<ParticipantConnectedEvent>(duration: const Duration(seconds: 1));
