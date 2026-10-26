@@ -114,6 +114,12 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
   String? _connectedServerAddress;
   String? get connectedServerAddress => _connectedServerAddress;
 
+  /// Whether each transport reads the address of the server it connected to with a full `getStats`
+  /// once its ICE connects ([connectedServerAddress], only logged). flutter_webrtc runs `getStats` on
+  /// the platform thread, at the moment a call connects: on an iPhone it held the main thread up to
+  /// 1.3 s. Apps that never read the address can turn it off before connecting.
+  static bool resolveConnectedServerAddress = true;
+
   bool fullReconnectOnNext = false;
 
   // server-provided ice servers
@@ -639,7 +645,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     publisher?.pc.onIceConnectionState = (rtc.RTCIceConnectionState state) async {
       logger.fine('publisher iceConnectionState: $state');
       if (state == rtc.RTCIceConnectionState.RTCIceConnectionStateConnected) {
-        await _handleGettingConnectedServerAddress(publisher!.pc);
+        if (resolveConnectedServerAddress) await _handleGettingConnectedServerAddress(publisher!.pc);
       }
     };
 
@@ -651,7 +657,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     subscriber?.pc.onIceConnectionState = (rtc.RTCIceConnectionState state) async {
       logger.fine('subscriber iceConnectionState: $state');
       if (state == rtc.RTCIceConnectionState.RTCIceConnectionStateConnected) {
-        await _handleGettingConnectedServerAddress(subscriber!.pc);
+        if (resolveConnectedServerAddress) await _handleGettingConnectedServerAddress(subscriber!.pc);
       }
     };
 
