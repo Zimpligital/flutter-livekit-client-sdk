@@ -44,8 +44,12 @@ final class BroadcastManager {
         view.preferredExtension = preferredExtension
         view.showsMicrophoneButton = false
 
-        let selector = NSSelectorFromString("buttonPressed:")
-        guard view.responds(to: selector) else { return }
-        view.perform(selector, with: nil)
+        // Tap the picker's own button through public UIKit API. The private `buttonPressed:`
+        // selector this used to call gets the app rejected by App Store review (as upstream does).
+        guard let button = view.subviews.compactMap({ $0 as? UIButton }).first else {
+            print("[LiveKit] Unable to find button in RPSystemBroadcastPickerView")
+            return
+        }
+        button.sendActions(for: .touchUpInside)
     }
 }
