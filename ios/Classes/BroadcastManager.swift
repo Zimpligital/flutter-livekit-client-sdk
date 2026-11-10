@@ -16,6 +16,7 @@
 
 import Combine
 import ReplayKit
+import UIKit
 
 @available(iOS 13.0, *)
 final class BroadcastManager {
