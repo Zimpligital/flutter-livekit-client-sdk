@@ -46,9 +46,9 @@ dependencies:
   json_annotation: ^4.9.0
 
   # Fix version to avoid version conflicts between WebRTC-SDK pods, which both this package and flutter_webrtc depend on.
-  # 1.6.0 dropped the private RPSystemBroadcastPickerView `buttonPressed:` selector (App Store
-  # rejects it) and still uses WebRTC-SDK 144.7559.09.
-  flutter_webrtc: 1.6.0
+  # Not 1.6.x yet: 1.6.0 removes the private broadcast-picker selector but ships as a Swift package,
+  # and this plugin's podspec still depends on the flutter_webrtc pod (pod install refuses the mix).
+  flutter_webrtc: 1.5.0
   dart_webrtc: ^1.8.0
 
 dev_dependencies:
